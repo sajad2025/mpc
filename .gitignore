@@ -16,9 +16,11 @@ build/
 
 # Acados specific
 acados/
+c_generated_code/
 test_acados/c_generated_code/
-test_acados/*_results.png
+acados_ocp*.json
 test_acados/acados_ocp*.json
+test_acados/*_results.png
 
 # IDE specific files
 .idea/
