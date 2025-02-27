@@ -124,9 +124,7 @@ The project includes advanced path planning capabilities in the `src` directory:
 - Path duration calculation utilities
 
 ### Geodesic Path Finding (`geodesic.py`)
-- Finds the minimum duration that results in a feasible path
-- Automatic search range calculation based on distance
-- Iterative duration optimization
+- Simplified `find_geodesic` function with minimal required parameters
 
 ### Path Finding (`path_finder.py`)
 - Fixed-duration path planning
@@ -175,7 +173,7 @@ ego.weight_terminal_steering = 10.0
 
 1. Geodesic path finding:
 ```bash
-python -c "from src.geodesic import find_geodesic; from src.core_solver import EgoConfig; from src.plots import plot_results; ego = EgoConfig(); min_duration, min_results = find_geodesic(ego); plot_results(min_results, ego) if min_results else print('No feasible path found')"
+python -c "from src.geodesic import find_geodesic, calc_time_range; from src.core_solver import EgoConfig; from src.plots import plot_results; ego = EgoConfig(); _, min_dur, max_dur, _ = calc_time_range(ego); min_duration, min_results = find_geodesic(ego, min_duration=min_dur, max_duration=max_dur, time_steps=0.5); plot_results(min_results, ego) if min_results else print('No feasible path found')"
 ```
 
 2. Path finding with fixed duration:

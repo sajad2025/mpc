@@ -118,7 +118,7 @@ if __name__ == "__main__":
     duration = calculate_path_duration(start_pos, end_pos, ego.velocity_max)
     
     print("Running path planning silently...")
-    results = find_path(ego, duration=10, dt=0.1, verbose=True)
+    results = find_path(ego, duration=duration, dt=0.1, verbose=True)
     print("Path planning completed.")
     
     # Import plot_results only if needed

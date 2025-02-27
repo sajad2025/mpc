@@ -64,6 +64,42 @@ def calculate_path_duration(start_pos, end_pos, max_velocity, margin=5.0):
     
     return duration
 
+def calc_time_range(ego, duration_range_margin=5.0):
+    """
+    Calculate the minimum and maximum duration for path planning based on the distance
+    between start and goal positions and the vehicle's maximum velocity.
+    
+    Args:
+        ego: Object containing vehicle parameters and constraints
+        duration_range_margin: Margin to add/subtract from middle duration to set search range (default: 5.0 seconds)
+        
+    Returns:
+        Tuple containing (initial_duration, min_duration, max_duration, distance)
+    """
+    # Extract start and end positions
+    start_x, start_y = ego.state_start[0], ego.state_start[1]
+    end_x, end_y = ego.state_final[0], ego.state_final[1]
+    
+    # Calculate Euclidean distance
+    distance = np.sqrt((end_x - start_x)**2 + (end_y - start_y)**2)
+    
+    # Calculate middle duration based on distance and max velocity
+    # Use absolute value of velocity_max to handle negative velocities
+    velocity_abs = abs(ego.velocity_max) if ego.velocity_max != 0 else abs(ego.velocity_min)
+    if velocity_abs == 0:
+        # If both velocity limits are 0, use a default value
+        velocity_abs = 1.0
+        print("Warning: Both velocity_max and velocity_min are 0. Using default velocity of 1.0 m/s.")
+    
+    duration_middle = distance / velocity_abs
+    
+    # Set search range
+    initial_duration = duration_middle
+    min_duration = max(duration_middle - duration_range_margin, 1.0)  # Ensure min_duration is at least 1 second
+    max_duration = duration_middle + duration_range_margin
+    
+    return initial_duration, min_duration, max_duration, distance
+
 def generate_controls(ego, sim_cfg):
     """
     Generate optimal controls for path planning using Acados.
@@ -209,8 +245,8 @@ def generate_controls(ego, sim_cfg):
     # State constraints - relaxed bounds for better convergence
     x_max = 100.0
     y_max = 100.0
-    ocp.constraints.lbx = np.array([-x_max, -y_max, -2*np.pi, 0.0, -0.5])  # Modified velocity and steering bounds
-    ocp.constraints.ubx = np.array([x_max, y_max, 2*np.pi, 3.0, 0.5])
+    ocp.constraints.lbx = np.array([-x_max, -y_max, -2*np.pi, ego.velocity_min, ego.steering_min])  # Use ego velocity limits
+    ocp.constraints.ubx = np.array([x_max, y_max, 2*np.pi, ego.velocity_max, ego.steering_max])  # Use ego velocity limits
     ocp.constraints.idxbx = np.array(range(nx))
     
     # Initial state constraint
@@ -221,15 +257,15 @@ def generate_controls(ego, sim_cfg):
         ego.state_final[0] - eps_pos,
         ego.state_final[1] - eps_pos,
         ego.state_final[2] - eps_angle,
-        -eps_vel,
-        -eps_vel
+        ego.state_final[3] - eps_vel,  # Use the target velocity with slack
+        ego.state_final[4] - eps_vel
     ])
     ocp.constraints.ubx_e = np.array([
         ego.state_final[0] + eps_pos,
         ego.state_final[1] + eps_pos,
         ego.state_final[2] + eps_angle,
-        eps_vel,
-        eps_vel
+        ego.state_final[3] + eps_vel,  # Use the target velocity with slack
+        ego.state_final[4] + eps_vel
     ])
     ocp.constraints.idxbx_e = np.array(range(nx))
     
@@ -246,7 +282,13 @@ def generate_controls(ego, sim_cfg):
         x_init = ego.state_start[0] + t * (ego.state_final[0] - ego.state_start[0])
         y_init = ego.state_start[1] + t * (ego.state_final[1] - ego.state_start[1])
         theta_init = ego.state_start[2] + t * (ego.state_final[2] - ego.state_start[2])
-        v_init = 1.0  # Initial guess for velocity
+        
+        # Initialize velocity within the allowed range
+        if ego.velocity_max > ego.velocity_min:
+            v_init = ego.velocity_min + 0.5 * (ego.velocity_max - ego.velocity_min)  # Middle of the range
+        else:
+            v_init = ego.velocity_min  # If max <= min, use min
+            
         steering_init = 0.0
         acados_solver.set(i, "x", np.array([x_init, y_init, theta_init, v_init, steering_init]))
     
