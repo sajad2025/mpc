@@ -3,8 +3,8 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from main_path_plan import EgoConfig, SimConfig
-from path_finder import find_path, calculate_path_duration
+from core_solver import EgoConfig, SimConfig, calculate_path_duration
+from path_finder import find_path
 
 def grid_path_planning(goal_x, goal_y, goal_theta, grid_size=20, grid_step=1, num_angles=8):
     """

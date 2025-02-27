@@ -6,7 +6,7 @@ import subprocess
 import numpy as np
 import matplotlib.pyplot as plt
 from contextlib import contextmanager
-from main_path_plan import generate_controls, EgoConfig, SimConfig
+from core_solver import generate_controls, EgoConfig, SimConfig, calculate_path_duration
 
 class SuppressOutput:
     """
@@ -39,27 +39,6 @@ class SuppressOutput:
                 os.close(fd)
             except:
                 pass
-
-def calculate_path_duration(start_pos, end_pos, max_velocity, margin=5.0):
-    """
-    Calculate a reasonable duration for path planning based on distance and max velocity.
-    
-    Args:
-        start_pos: Starting position [x, y]
-        end_pos: End position [x, y]
-        max_velocity: Maximum allowed velocity
-        margin: Additional time margin in seconds
-        
-    Returns:
-        Estimated duration in seconds
-    """
-    # Calculate Euclidean distance
-    distance = np.sqrt((end_pos[0] - start_pos[0])**2 + (end_pos[1] - start_pos[1])**2)
-    
-    # Calculate duration based on distance and max velocity, plus margin
-    duration = (distance / max_velocity) + margin
-    
-    return duration
 
 def find_path(ego, duration, dt=0.1, verbose=True):
     """
