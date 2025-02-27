@@ -1,6 +1,6 @@
 # Model Predictive Control (MPC) Project
 
-This repository contains examples and implementations of Model Predictive Control using Acados and CasADi.
+This repository contains examples and implementations of Model Predictive Control using Acados and CasADi, with a focus on path planning for autonomous vehicles.
 
 ## Project Structure
 
@@ -9,6 +9,10 @@ This repository contains examples and implementations of Model Predictive Contro
 ├── README.md
 ├── requirements.txt
 ├── setup.sh
+├── src/
+│   ├── main_path_plan.py        # Main path planning implementation
+│   ├── path_finder.py           # Path finding utilities
+│   └── grid_path_plan.py        # Grid-based path planning
 └── test_acados/
     ├── test_acados.py           # Basic Acados test
     ├── test_acados_lqr.py       # LQR example using Acados
@@ -16,7 +20,7 @@ This repository contains examples and implementations of Model Predictive Contro
     └── test_casadi_simple.py    # Simple optimization using CasADi
 ```
 
-Note: Generated files (plots, C code, JSON configs) will be created in the `test_acados` directory when running the examples.
+Generated files (plots, C code, JSON configs) will be saved in the `docs` directory.
 
 ## Prerequisites
 
@@ -166,4 +170,76 @@ These files are automatically generated and should not be committed to the repos
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for more information. 
+MIT License. See [LICENSE](LICENSE) for more information.
+
+## Path Planning Features
+
+The project includes advanced path planning capabilities in the `src` directory:
+
+### Main Path Planning (`main_path_plan.py`)
+- Kinematic vehicle model with configurable parameters
+- Customizable cost function weights for:
+  - Acceleration smoothness
+  - Steering rate
+  - Steering angle
+  - Terminal state precision
+- Automatic duration optimization
+- Visualization of paths and control inputs
+
+### Path Finding (`path_finder.py`)
+- Fixed-duration path planning
+- Automatic duration calculation based on distance
+- Output suppression for cleaner execution
+- Utility functions for path finding
+
+### Grid Path Planning (`grid_path_plan.py`)
+- Systematic exploration of different starting positions
+- Multiple initial heading angles
+- Visualization of all successful paths
+- Automatic retry with increased duration for failed attempts
+
+### Configuration Options
+
+The path planning behavior can be customized through the `EgoConfig` class:
+
+```python
+ego = EgoConfig()
+
+# Vehicle parameters
+ego.L = 2.7  # Wheelbase length (m)
+
+# State constraints
+ego.velocity_max = 3.0
+ego.steering_max = 0.5
+
+# Cost weights
+ego.weight_acceleration = 1.0
+ego.weight_steering_rate = 100.0
+ego.weight_steering_angle = 1.0
+
+# Terminal weights
+ego.weight_terminal_position_x = 100.0
+ego.weight_terminal_position_y = 100.0
+ego.weight_terminal_heading = 100.0
+ego.weight_terminal_velocity = 10.0
+ego.weight_terminal_steering = 10.0
+```
+
+### Running Path Planning Examples
+
+1. Basic path planning:
+```bash
+python src/main_path_plan.py
+```
+
+2. Path finding with fixed duration:
+```bash
+python src/path_finder.py
+```
+
+3. Grid-based path planning:
+```bash
+python src/grid_path_plan.py
+```
+
+Generated plots will be saved in the `docs` directory. 
