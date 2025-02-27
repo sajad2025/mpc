@@ -22,8 +22,8 @@ class EgoConfig:
         self.steering_rate_min = -0.4
         
         # Start and goal states [x, y, theta, velocity, steering]
-        self.state_start = [0, 0, 0, 0, 0]
-        self.state_final = [20, 20, np.pi/2, 0, 0]
+        self._state_start = [0, 0, 0, 0, 0]
+        self._state_final = [20, 20, np.pi/2, 0, 0]
         
         # Cost function weights
         # Path cost weights
@@ -37,6 +37,55 @@ class EgoConfig:
         self.weight_terminal_heading = 100.0
         self.weight_terminal_velocity = 10.0
         self.weight_terminal_steering = 10.0
+    
+    @staticmethod
+    def normalize_angle(angle):
+        """
+        Normalize angle to be within [-π, π]
+        """
+        return ((angle + np.pi) % (2 * np.pi)) - np.pi
+    
+    @property
+    def state_start(self):
+        return self._state_start
+    
+    @state_start.setter
+    def state_start(self, state):
+        """
+        Set the start state with angle normalization.
+        Ensures the heading angle (theta) is normalized to [-π, π].
+        """
+        if len(state) != 5:
+            raise ValueError("State must have 5 elements: [x, y, theta, velocity, steering]")
+        
+        # Create a copy of the state to avoid modifying the input
+        normalized_state = state.copy()
+        
+        # Normalize the heading angle (index 2)
+        normalized_state[2] = self.normalize_angle(state[2])
+        
+        self._state_start = normalized_state
+    
+    @property
+    def state_final(self):
+        return self._state_final
+    
+    @state_final.setter
+    def state_final(self, state):
+        """
+        Set the final state with angle normalization.
+        Ensures the heading angle (theta) is normalized to [-π, π].
+        """
+        if len(state) != 5:
+            raise ValueError("State must have 5 elements: [x, y, theta, velocity, steering]")
+        
+        # Create a copy of the state to avoid modifying the input
+        normalized_state = state.copy()
+        
+        # Normalize the heading angle (index 2)
+        normalized_state[2] = self.normalize_angle(state[2])
+        
+        self._state_final = normalized_state
 
 class SimConfig:
     def __init__(self):
@@ -245,8 +294,8 @@ def generate_controls(ego, sim_cfg):
     # State constraints - relaxed bounds for better convergence
     x_max = 100.0
     y_max = 100.0
-    ocp.constraints.lbx = np.array([-x_max, -y_max, -2*np.pi, ego.velocity_min, ego.steering_min])  # Use ego velocity limits
-    ocp.constraints.ubx = np.array([x_max, y_max, 2*np.pi, ego.velocity_max, ego.steering_max])  # Use ego velocity limits
+    ocp.constraints.lbx = np.array([-x_max, -y_max, -4*np.pi, ego.velocity_min, ego.steering_min])  # Use ego velocity limits
+    ocp.constraints.ubx = np.array([x_max, y_max, 4*np.pi, ego.velocity_max, ego.steering_max])  # Use ego velocity limits
     ocp.constraints.idxbx = np.array(range(nx))
     
     # Initial state constraint
@@ -286,15 +335,21 @@ def generate_controls(ego, sim_cfg):
         # Calculate longitudinal error to determine velocity direction
         x_bar = ego.state_start[0] - ego.state_final[0]
         y_bar = ego.state_start[1] - ego.state_final[1]
-        longitudinal_err = -y_bar * sin(ego.state_final[2]) - x_bar * cos(ego.state_final[2])
+        theta_bar = ego.state_start[2] - ego.state_final[2]
+        lat_err = +y_bar * cos(ego.state_final[2]) - x_bar * sin(ego.state_final[2])
+        lng_err = -y_bar * sin(ego.state_final[2]) - x_bar * cos(ego.state_final[2])
         
         # Set velocity initialization based on longitudinal error
-        if longitudinal_err < 0.2:
-            v_init = -1.0  # Negative velocity when approaching target from behind
-        else:
-            v_init = 1.0  # Positive velocity when approaching target from front
-            
+        # if i < 1:
+        #     if lng_err < 0.2:
+        #         v_init = -1.0 if lat_err < 0  else 1.0
+        #     else:
+        #         v_init = 1.0  # Positive velocity when approaching target from front
+        # else:
+        #     v_init = 1.0  # Positive velocity when approaching target from front
+        v_init = -1.0 if lng_err < 0.2 else 1.0
         steering_init = 0.0
+        # print(f"v_init: {v_init} , lat_err: {lat_err} , steering_init: {steering_init}, cos_hb: {cos(theta_bar)}, lng_err: {lng_err}")
         acados_solver.set(i, "x", np.array([x_init, y_init, theta_init, v_init, steering_init]))
     
     # Solve OCP
