@@ -2,9 +2,9 @@
 
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 from core_solver import EgoConfig, SimConfig, calculate_path_duration
 from path_finder import find_path
+from plots import plot_all_paths
 
 def grid_path_planning(goal_x, goal_y, goal_theta, grid_size=20, grid_step=1, num_angles=8):
     """
@@ -110,71 +110,6 @@ def grid_path_planning(goal_x, goal_y, goal_theta, grid_size=20, grid_step=1, nu
     
     print(f"\nCompleted grid search. Successful paths: {len(successful_results)}/{total_combinations}")
     return successful_results
-
-def plot_all_paths(successful_results, goal_x, goal_y, save_path=None):
-    """
-    Plot all successful paths on a single 2D plot.
-    
-    Args:
-        successful_results: List of successful path planning results
-        goal_x: Goal x-coordinate
-        goal_y: Goal y-coordinate
-        save_path: Optional path to save the plot
-    """
-    # Create figure with proper layout for colorbar
-    fig = plt.figure(figsize=(12, 10))
-    gs = plt.GridSpec(1, 20)  # 1 row, 20 columns
-    ax = fig.add_subplot(gs[0, :19])  # Main plot takes 19/20 of the width
-    cax = fig.add_subplot(gs[0, 19])  # Colorbar takes 1/20 of the width
-    
-    # Plot goal position
-    ax.plot(goal_x, goal_y, 'ro', markersize=10, label='Goal')
-    
-    # Plot each path with a different color
-    cmap = plt.cm.viridis
-    colors = [cmap(i) for i in np.linspace(0, 1, len(successful_results))]
-    
-    for i, result in enumerate(successful_results):
-        # Extract path data
-        path = result['results']['x']
-        start_x, start_y, start_theta = result['start']
-        
-        # Plot path
-        ax.plot(path[:, 0], path[:, 1], '-', color=colors[i], linewidth=1, alpha=0.7)
-        
-        # Plot start position with an arrow to show heading
-        arrow_length = 1.0
-        dx = arrow_length * np.cos(start_theta)
-        dy = arrow_length * np.sin(start_theta)
-        ax.arrow(start_x, start_y, dx, dy, head_width=0.3, head_length=0.5, 
-                fc=colors[i], ec=colors[i], alpha=0.7)
-    
-    # Add grid
-    ax.grid(True)
-    
-    # Set equal aspect ratio
-    ax.set_aspect('equal')
-    
-    # Add labels and title
-    ax.set_xlabel('X (m)')
-    ax.set_ylabel('Y (m)')
-    ax.set_title(f'Path Planning from Multiple Initial Positions\n{len(successful_results)} successful paths')
-    
-    # Add colorbar to show path index
-    norm = plt.Normalize(0, len(successful_results)-1)
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    plt.colorbar(sm, cax=cax, label='Path Index')
-    
-    # Tight layout
-    plt.tight_layout()
-    
-    # Save if requested
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
-    
-    # Show plot
-    plt.show()
 
 if __name__ == "__main__":
     # Define goal position

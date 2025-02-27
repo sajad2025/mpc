@@ -106,6 +106,8 @@ def clean_acados_files():
 if __name__ == "__main__":
     # Example usage
     ego = EgoConfig()
+    ego.state_start = [-20, 0, 0, 0, 0]
+    ego.state_final = [0,   0, 0, 0, 0]
     
     # Clean up any existing Acados files
     clean_acados_files()
@@ -116,12 +118,12 @@ if __name__ == "__main__":
     duration = calculate_path_duration(start_pos, end_pos, ego.velocity_max)
     
     print("Running path planning silently...")
-    results = find_path(ego, duration=duration, dt=0.1, verbose=False)
+    results = find_path(ego, duration=10, dt=0.1, verbose=True)
     print("Path planning completed.")
     
     # Import plot_results only if needed
     if results is not None:
-        from main_path_plan import plot_results
+        from plots import plot_results
         plot_results(results, ego, save_path='docs/path_finder_results.png')
     else:
         print("No feasible path found.") 

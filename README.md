@@ -10,9 +10,11 @@ This repository contains examples and implementations of Model Predictive Contro
 ├── requirements.txt
 ├── setup.sh
 ├── src/
-│   ├── main_path_plan.py        # Main path planning implementation
+│   ├── core_solver.py           # Core solver functionality and vehicle configuration
+│   ├── geodesic.py              # Geodesic path finding functionality
 │   ├── path_finder.py           # Path finding utilities
-│   └── grid_path_plan.py        # Grid-based path planning
+│   ├── grid_path_plan.py        # Grid-based path planning
+│   └── plots.py                 # Visualization functions
 └── test_acados/
     ├── test_acados.py           # Basic Acados test
     ├── test_acados_lqr.py       # LQR example using Acados
@@ -115,15 +117,16 @@ Each example generates the following in the `test_acados` directory:
 
 The project includes advanced path planning capabilities in the `src` directory:
 
-### Main Path Planning (`main_path_plan.py`)
+### Core Solver (`core_solver.py`)
 - Kinematic vehicle model with configurable parameters
-- Customizable cost function weights for:
-  - Acceleration smoothness
-  - Steering rate
-  - Steering angle
-  - Terminal state precision
-- Automatic duration optimization
-- Visualization of paths and control inputs
+- Vehicle and simulation configuration classes (EgoConfig, SimConfig)
+- Control generation functionality
+- Path duration calculation utilities
+
+### Geodesic Path Finding (`geodesic.py`)
+- Finds the minimum duration that results in a feasible path
+- Automatic search range calculation based on distance
+- Iterative duration optimization
 
 ### Path Finding (`path_finder.py`)
 - Fixed-duration path planning
@@ -134,8 +137,12 @@ The project includes advanced path planning capabilities in the `src` directory:
 ### Grid Path Planning (`grid_path_plan.py`)
 - Systematic exploration of different starting positions
 - Multiple initial heading angles
-- Visualization of all successful paths
 - Automatic retry with increased duration for failed attempts
+
+### Visualization (`plots.py`)
+- Comprehensive visualization of paths and control inputs
+- Multi-path visualization for grid-based planning
+- Customizable plot saving options
 
 ### Configuration Options
 
@@ -166,9 +173,9 @@ ego.weight_terminal_steering = 10.0
 
 ### Running Path Planning Examples
 
-1. Basic path planning:
+1. Geodesic path finding:
 ```bash
-python src/main_path_plan.py
+python -c "from src.geodesic import find_geodesic; from src.core_solver import EgoConfig; from src.plots import plot_results; ego = EgoConfig(); min_duration, min_results = find_geodesic(ego); plot_results(min_results, ego) if min_results else print('No feasible path found')"
 ```
 
 2. Path finding with fixed duration:
