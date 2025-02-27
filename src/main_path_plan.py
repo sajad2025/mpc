@@ -69,64 +69,82 @@ def generate_controls(ego, sim_cfg):
     ocp.cost.cost_type = 'LINEAR_LS'
     ocp.cost.cost_type_e = 'LINEAR_LS'
     
-    # State and control reference
-    x_ref = np.array([ego.state_final[0], ego.state_final[1], ego.state_final[2], 0.0, 0.0])
-    u_ref = np.array([0.0, 0.0])
-    
-    # Cost matrices
-    Q = np.diag([1.0, 1.0, 0.1, 0.1, 0.1])  # state cost
-    R = np.diag([0.1, 0.1])  # control cost
-    
-    # Set cost parameters
-    ny = nx + nu  # number of outputs in cost function
-    ny_e = nx    # number of outputs in terminal cost function
+    # Only penalize control inputs (acceleration and steering rate)
+    ny = nu  # number of outputs in cost function - only control inputs
+    ny_e = 0  # no terminal cost
     
     ocp.dims.ny = ny
     ocp.dims.ny_e = ny_e
     
-    # Cost matrices
-    ocp.cost.W = np.zeros((ny, ny))
-    ocp.cost.W[:nx, :nx] = Q
-    ocp.cost.W[nx:, nx:] = R
+    # Cost matrix - only penalize controls
+    R = np.diag([1.0, 1.0])  # Equal weights on acceleration and steering rate
     
-    ocp.cost.W_e = Q
+    ocp.cost.W = R
     
-    # Linear output functions
+    # No terminal cost since we're using constraints
+    ocp.cost.W_e = np.zeros((0, 0))
+    
+    # Linear output functions - only for controls
     ocp.cost.Vx = np.zeros((ny, nx))
-    ocp.cost.Vx[:nx, :nx] = np.eye(nx)
+    ocp.cost.Vu = np.eye(nu)
     
-    ocp.cost.Vu = np.zeros((ny, nu))
-    ocp.cost.Vu[nx:, :] = np.eye(nu)
+    ocp.cost.Vx_e = np.zeros((0, nx))
     
-    ocp.cost.Vx_e = np.eye(nx)
-    
-    # Reference trajectory
-    ocp.cost.yref = np.concatenate((x_ref, u_ref))
-    ocp.cost.yref_e = x_ref
+    # Reference trajectory - zero control reference
+    ocp.cost.yref = np.zeros(nu)  # Reference is zero control
+    ocp.cost.yref_e = np.zeros(0)  # No terminal cost
     
     # Set prediction horizon
     ocp.solver_options.tf = sim_cfg.duration
     
-    # Set constraints
+    # Set options
+    ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
+    ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
+    ocp.solver_options.integrator_type = 'ERK'
+    ocp.solver_options.nlp_solver_type = 'SQP'
+    ocp.solver_options.nlp_solver_max_iter = 100
+    ocp.solver_options.levenberg_marquardt = 1e-2
+    ocp.solver_options.qp_solver_cond_N = 5
+    
+    # Additional numerical options for better convergence
+    ocp.solver_options.qp_solver_iter_max = 50
+    ocp.solver_options.tol = 1e-3
+    ocp.solver_options.print_level = 1
+    
+    # Set constraints with slack
+    eps = 1e-1  # Increased slack for better numerical stability
+    
+    # Control input constraints
     ocp.constraints.lbu = np.array([ego.acceleration_min, ego.steering_rate_min])
     ocp.constraints.ubu = np.array([ego.acceleration_max, ego.steering_rate_max])
     ocp.constraints.idxbu = np.array(range(nu))
     
-    # State constraints
-    x_max = 100.0  # Large enough for our problem
+    # State constraints - relaxed bounds for better convergence
+    x_max = 100.0
     y_max = 100.0
-    ocp.constraints.lbx = np.array([-x_max, -y_max, -2*np.pi, ego.velocity_min, ego.steering_min])
-    ocp.constraints.ubx = np.array([x_max, y_max, 2*np.pi, ego.velocity_max, ego.steering_max])
+    ocp.constraints.lbx = np.array([-x_max, -y_max, -2*np.pi, 0.0, -0.5])  # Modified velocity and steering bounds
+    ocp.constraints.ubx = np.array([x_max, y_max, 2*np.pi, 3.0, 0.5])
     ocp.constraints.idxbx = np.array(range(nx))
     
     # Initial state constraint
     ocp.constraints.x0 = np.array(ego.state_start)
     
-    # Set options
-    ocp.solver_options.qp_solver = 'FULL_CONDENSING_QPOASES'
-    ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
-    ocp.solver_options.integrator_type = 'ERK'
-    ocp.solver_options.nlp_solver_type = 'SQP_RTI'
+    # Terminal constraints with larger slack
+    ocp.constraints.lbx_e = np.array([
+        ego.state_final[0] - eps,
+        ego.state_final[1] - eps,
+        ego.state_final[2] - eps,
+        -eps,
+        -eps
+    ])
+    ocp.constraints.ubx_e = np.array([
+        ego.state_final[0] + eps,
+        ego.state_final[1] + eps,
+        ego.state_final[2] + eps,
+        eps,
+        eps
+    ])
+    ocp.constraints.idxbx_e = np.array(range(nx))
     
     # Create solver
     acados_solver = AcadosOcpSolver(ocp, json_file='acados_ocp_' + ocp.model_name + '.json')
@@ -134,6 +152,16 @@ def generate_controls(ego, sim_cfg):
     # Initialize solution containers
     simX = np.ndarray((N+1, nx))
     simU = np.ndarray((N, nu))
+    
+    # Initialize with a simple straight line trajectory
+    for i in range(N):
+        t = float(i) / N
+        x_init = ego.state_start[0] + t * (ego.state_final[0] - ego.state_start[0])
+        y_init = ego.state_start[1] + t * (ego.state_final[1] - ego.state_start[1])
+        theta_init = ego.state_start[2] + t * (ego.state_final[2] - ego.state_start[2])
+        v_init = 1.0  # Initial guess for velocity
+        steering_init = 0.0
+        acados_solver.set(i, "x", np.array([x_init, y_init, theta_init, v_init, steering_init]))
     
     # Solve OCP
     status = acados_solver.solve()
@@ -167,9 +195,10 @@ def plot_results(results, ego, save_path=None):
     x = results['x']
     u = results['u']
     
-    # Create subplots
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
+    # Create subplots (3x2 grid now)
+    fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2, figsize=(10.5, 7.35))
     
+    # Left column: States
     # Plot trajectory
     ax1.plot(x[:, 0], x[:, 1], 'b-', label='Vehicle path')
     ax1.plot(ego.state_start[0], ego.state_start[1], 'go', label='Start')
@@ -180,36 +209,63 @@ def plot_results(results, ego, save_path=None):
     ax1.grid(True)
     ax1.legend()
     
-    # Plot velocity and steering
-    ax2.plot(t, x[:, 3], 'b-', label='Velocity')
-    ax2.plot(t, x[:, 4], 'r-', label='Steering angle')
-    ax2.set_xlabel('Time [s]')
-    ax2.set_ylabel('Value')
-    ax2.set_title('Velocity and Steering')
-    ax2.grid(True)
-    ax2.legend()
-    
-    # Plot controls
-    ax3.plot(t[:-1], u[:, 0], 'g-', label='Acceleration')
+    # Plot velocity
+    ax3.plot(t, x[:, 3], 'b-', label='Velocity')
+    ax3.axhline(y=ego.velocity_max, color='k', linestyle='--', alpha=0.3, label='Bounds')
+    ax3.axhline(y=ego.velocity_min, color='k', linestyle='--', alpha=0.3)
     ax3.set_xlabel('Time [s]')
-    ax3.set_ylabel('Acceleration [m/s²]')
-    ax3.set_title('Acceleration Control')
+    ax3.set_ylabel('Velocity [m/s]')
+    ax3.set_title('Vehicle Velocity')
     ax3.grid(True)
     ax3.legend()
     
-    ax4.plot(t[:-1], u[:, 1], 'm-', label='Steering rate')
+    # Plot steering angle (moved to bottom left)
+    ax5.plot(t, x[:, 4], 'r-', label='Steering angle')
+    ax5.axhline(y=ego.steering_max, color='k', linestyle='--', alpha=0.3, label='Bounds')
+    ax5.axhline(y=ego.steering_min, color='k', linestyle='--', alpha=0.3)
+    ax5.set_xlabel('Time [s]')
+    ax5.set_ylabel('Steering angle [rad]')
+    ax5.set_title('Steering Angle')
+    ax5.grid(True)
+    ax5.legend()
+    
+    # Right column: Controls and heading
+    # Plot heading (moved to top right)
+    ax2.plot(t, np.rad2deg(x[:, 2]), 'b-', label='Current heading')
+    ax2.axhline(y=np.rad2deg(ego.state_final[2]), color='r', linestyle='--', label='Target heading')
+    ax2.set_xlabel('Time [s]')
+    ax2.set_ylabel('Heading [deg]')
+    ax2.set_title('Vehicle Heading')
+    ax2.grid(True)
+    ax2.legend()
+    
+    # Plot acceleration
+    ax4.plot(t[:-1], u[:, 0], 'g-', label='Acceleration')
+    ax4.axhline(y=ego.acceleration_max, color='k', linestyle='--', alpha=0.3, label='Bounds')
+    ax4.axhline(y=ego.acceleration_min, color='k', linestyle='--', alpha=0.3)
     ax4.set_xlabel('Time [s]')
-    ax4.set_ylabel('Steering rate [rad/s]')
-    ax4.set_title('Steering Rate Control')
+    ax4.set_ylabel('Acceleration [m/s²]')
+    ax4.set_title('Acceleration Control')
     ax4.grid(True)
     ax4.legend()
+    
+    # Plot steering rate
+    ax6.plot(t[:-1], u[:, 1], 'm-', label='Steering rate')
+    ax6.axhline(y=ego.steering_rate_max, color='k', linestyle='--', alpha=0.3, label='Bounds')
+    ax6.axhline(y=ego.steering_rate_min, color='k', linestyle='--', alpha=0.3)
+    ax6.set_xlabel('Time [s]')
+    ax6.set_ylabel('Steering rate [rad/s]')
+    ax6.set_title('Steering Rate Control')
+    ax6.grid(True)
+    ax6.legend()
     
     plt.tight_layout()
     
     if save_path:
         plt.savefig(save_path)
-    else:
-        plt.show()
+    
+    # Show the plot and keep it open
+    plt.show(block=True)
 
 if __name__ == "__main__":
     # Example usage
