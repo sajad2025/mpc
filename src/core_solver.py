@@ -13,7 +13,7 @@ class EgoConfig:
         
         # State constraints
         self.velocity_max = 3.0
-        self.velocity_min = 0.0
+        self.velocity_min = -3.0
         self.acceleration_max = 2.0
         self.acceleration_min = -2.0
         self.steering_max = 0.5
@@ -283,8 +283,16 @@ def generate_controls(ego, sim_cfg):
         y_init = ego.state_start[1] + t * (ego.state_final[1] - ego.state_start[1])
         theta_init = ego.state_start[2] + t * (ego.state_final[2] - ego.state_start[2])
         
-        # Use fixed velocity initialization
-        v_init = 1.0  # Initial guess for velocity (fixed value)
+        # Calculate longitudinal error to determine velocity direction
+        x_bar = ego.state_start[0] - ego.state_final[0]
+        y_bar = ego.state_start[1] - ego.state_final[1]
+        longitudinal_err = -y_bar * sin(ego.state_final[2]) - x_bar * cos(ego.state_final[2])
+        
+        # Set velocity initialization based on longitudinal error
+        if longitudinal_err < 0.2:
+            v_init = -1.0  # Negative velocity when approaching target from behind
+        else:
+            v_init = 1.0  # Positive velocity when approaching target from front
             
         steering_init = 0.0
         acados_solver.set(i, "x", np.array([x_init, y_init, theta_init, v_init, steering_init]))
