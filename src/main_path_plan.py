@@ -200,62 +200,56 @@ def plot_results(results, ego, save_path=None):
     
     # Left column: States
     # Plot trajectory
-    ax1.plot(x[:, 0], x[:, 1], 'b-', label='Vehicle path')
-    ax1.plot(ego.state_start[0], ego.state_start[1], 'go', label='Start')
-    ax1.plot(ego.state_final[0], ego.state_final[1], 'ro', label='Goal')
-    ax1.set_xlabel('X [m]')
-    ax1.set_ylabel('Y [m]')
-    ax1.set_title('Vehicle Trajectory')
+    ax1.plot(x[:, 0], x[:, 1], 'b-', label='path (m)')
+    ax1.plot(ego.state_start[0], ego.state_start[1], 'go', label='start')
+    ax1.plot(ego.state_final[0], ego.state_final[1], 'ro', label='goal')
+    
+    # Add circles for car position at each sample
+    for i in range(0, len(t), 5):  # Plot every 5th circle to avoid overcrowding
+        circle = plt.Circle((x[i, 0], x[i, 1]), ego.L, fill=False, linestyle='--', 
+                          color='blue', alpha=0.2, linewidth=0.5)
+        ax1.add_patch(circle)
+    
     ax1.grid(True)
-    ax1.legend()
+    # Move legend outside of ax1 to the right
+    ax1.legend(bbox_to_anchor=(1.15, 1), loc='upper left')
+    # Make sure the aspect ratio is equal so circles look circular
+    ax1.set_aspect('equal')
     
     # Plot velocity
-    ax3.plot(t, x[:, 3], 'b-', label='Velocity')
-    ax3.axhline(y=ego.velocity_max, color='k', linestyle='--', alpha=0.3, label='Bounds')
+    ax3.plot(t, x[:, 3], 'b-', label='velocity (m/s)')
+    ax3.axhline(y=ego.velocity_max, color='k', linestyle='--', alpha=0.3, label='bounds')
     ax3.axhline(y=ego.velocity_min, color='k', linestyle='--', alpha=0.3)
-    ax3.set_xlabel('Time [s]')
-    ax3.set_ylabel('Velocity [m/s]')
-    ax3.set_title('Vehicle Velocity')
     ax3.grid(True)
     ax3.legend()
     
     # Plot steering angle (moved to bottom left)
-    ax5.plot(t, x[:, 4], 'r-', label='Steering angle')
-    ax5.axhline(y=ego.steering_max, color='k', linestyle='--', alpha=0.3, label='Bounds')
-    ax5.axhline(y=ego.steering_min, color='k', linestyle='--', alpha=0.3)
-    ax5.set_xlabel('Time [s]')
-    ax5.set_ylabel('Steering angle [rad]')
-    ax5.set_title('Steering Angle')
+    ax5.plot(t, np.rad2deg(x[:, 4]), 'r-', label='steering angle (deg)')
+    ax5.axhline(y=np.rad2deg(ego.steering_max), color='k', linestyle='--', alpha=0.3, label='bounds')
+    ax5.axhline(y=np.rad2deg(ego.steering_min), color='k', linestyle='--', alpha=0.3)
+    ax5.set_xlabel('time (s)')
     ax5.grid(True)
     ax5.legend()
     
     # Right column: Controls and heading
     # Plot heading (moved to top right)
-    ax2.plot(t, np.rad2deg(x[:, 2]), 'b-', label='Current heading')
-    ax2.axhline(y=np.rad2deg(ego.state_final[2]), color='r', linestyle='--', label='Target heading')
-    ax2.set_xlabel('Time [s]')
-    ax2.set_ylabel('Heading [deg]')
-    ax2.set_title('Vehicle Heading')
+    ax2.plot(t, np.rad2deg(x[:, 2]), 'b-', label='current heading (deg)')
+    ax2.axhline(y=np.rad2deg(ego.state_final[2]), color='r', linestyle='--', label='target heading')
     ax2.grid(True)
     ax2.legend()
     
     # Plot acceleration
-    ax4.plot(t[:-1], u[:, 0], 'g-', label='Acceleration')
-    ax4.axhline(y=ego.acceleration_max, color='k', linestyle='--', alpha=0.3, label='Bounds')
+    ax4.plot(t[:-1], u[:, 0], 'g-', label='acceleration (m/s²)')
+    ax4.axhline(y=ego.acceleration_max, color='k', linestyle='--', alpha=0.3, label='bounds')
     ax4.axhline(y=ego.acceleration_min, color='k', linestyle='--', alpha=0.3)
-    ax4.set_xlabel('Time [s]')
-    ax4.set_ylabel('Acceleration [m/s²]')
-    ax4.set_title('Acceleration Control')
     ax4.grid(True)
     ax4.legend()
     
     # Plot steering rate
-    ax6.plot(t[:-1], u[:, 1], 'm-', label='Steering rate')
-    ax6.axhline(y=ego.steering_rate_max, color='k', linestyle='--', alpha=0.3, label='Bounds')
-    ax6.axhline(y=ego.steering_rate_min, color='k', linestyle='--', alpha=0.3)
-    ax6.set_xlabel('Time [s]')
-    ax6.set_ylabel('Steering rate [rad/s]')
-    ax6.set_title('Steering Rate Control')
+    ax6.plot(t[:-1], np.rad2deg(u[:, 1]), 'm-', label='steering rate (deg/s)')
+    ax6.axhline(y=np.rad2deg(ego.steering_rate_max), color='k', linestyle='--', alpha=0.3, label='bounds')
+    ax6.axhline(y=np.rad2deg(ego.steering_rate_min), color='k', linestyle='--', alpha=0.3)
+    ax6.set_xlabel('time (s)')
     ax6.grid(True)
     ax6.legend()
     
