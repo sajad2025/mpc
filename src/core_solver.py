@@ -283,11 +283,8 @@ def generate_controls(ego, sim_cfg):
         y_init = ego.state_start[1] + t * (ego.state_final[1] - ego.state_start[1])
         theta_init = ego.state_start[2] + t * (ego.state_final[2] - ego.state_start[2])
         
-        # Initialize velocity within the allowed range
-        if ego.velocity_max > ego.velocity_min:
-            v_init = ego.velocity_min + 0.5 * (ego.velocity_max - ego.velocity_min)  # Middle of the range
-        else:
-            v_init = ego.velocity_min  # If max <= min, use min
+        # Use fixed velocity initialization
+        v_init = 1.0  # Initial guess for velocity (fixed value)
             
         steering_init = 0.0
         acados_solver.set(i, "x", np.array([x_init, y_init, theta_init, v_init, steering_init]))
