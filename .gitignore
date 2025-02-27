@@ -20,8 +20,6 @@ c_generated_code/
 test_acados/c_generated_code/
 acados_ocp*.json
 test_acados/acados_ocp*.json
-test_acados/*_results.png
-path_planning_results.png
 
 # IDE specific files
 .idea/
