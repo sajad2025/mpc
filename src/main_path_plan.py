@@ -7,6 +7,43 @@ from casadi import *
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosModel
 import matplotlib.pyplot as plt
 
+class EgoConfig:
+    def __init__(self):
+        # Vehicle physical parameters
+        self.L = 2.7  # Wheelbase length (m)
+        
+        # State constraints
+        self.velocity_max = 3.0
+        self.velocity_min = 0.0
+        self.acceleration_max = 2.0
+        self.acceleration_min = -2.0
+        self.steering_max = 0.5
+        self.steering_min = -0.5
+        self.steering_rate_max = 0.4
+        self.steering_rate_min = -0.4
+        
+        # Start and goal states [x, y, theta, velocity, steering]
+        self.state_start = [0, 0, 0, 0, 0]
+        self.state_final = [20, 20, np.pi/2, 0, 0]
+        
+        # Cost function weights
+        # Path cost weights
+        self.weight_acceleration = 1.0
+        self.weight_steering_rate = 100.0
+        self.weight_steering_angle = 1.0
+        
+        # Terminal cost weights for all states
+        self.weight_terminal_position_x = 100.0
+        self.weight_terminal_position_y = 100.0
+        self.weight_terminal_heading = 100.0
+        self.weight_terminal_velocity = 10.0
+        self.weight_terminal_steering = 10.0
+
+class SimConfig:
+    def __init__(self):
+        self.duration = 30.0
+        self.dt = 0.1
+
 def generate_controls(ego, sim_cfg):
     """
     Generate optimal controls for path planning using Acados.
@@ -20,6 +57,7 @@ def generate_controls(ego, sim_cfg):
         - t: time points
         - x: state trajectory
         - u: control inputs
+        - status: solver status (0 = success)
     """
     # Create Acados OCP object
     ocp = AcadosOcp()
@@ -69,30 +107,56 @@ def generate_controls(ego, sim_cfg):
     ocp.cost.cost_type = 'LINEAR_LS'
     ocp.cost.cost_type_e = 'LINEAR_LS'
     
-    # Only penalize control inputs (acceleration and steering rate)
-    ny = nu  # number of outputs in cost function - only control inputs
-    ny_e = 0  # no terminal cost
+    # Penalize control inputs and steering angle
+    ny = nu + 1  # number of outputs in cost function: [acceleration, steering_rate, steering_angle]
+    ny_e = nx  # Terminal cost for all states: [x, y, theta, velocity, steering]
     
     ocp.dims.ny = ny
     ocp.dims.ny_e = ny_e
     
-    # Cost matrix - only penalize controls
-    R = np.diag([1.0, 1.0])  # Equal weights on acceleration and steering rate
+    # Cost matrix - weights for [acceleration, steering_rate, steering_angle]
+    # Use weights from ego config
+    R = np.diag([
+        ego.weight_acceleration,
+        ego.weight_steering_rate,
+        ego.weight_steering_angle
+    ])
     
     ocp.cost.W = R
     
-    # No terminal cost since we're using constraints
-    ocp.cost.W_e = np.zeros((0, 0))
+    # Terminal cost to ensure all states reach target values
+    # Use weights from ego config
+    W_e = np.diag([
+        ego.weight_terminal_position_x,
+        ego.weight_terminal_position_y,
+        ego.weight_terminal_heading,
+        ego.weight_terminal_velocity,
+        ego.weight_terminal_steering
+    ])
+    ocp.cost.W_e = W_e
     
-    # Linear output functions - only for controls
-    ocp.cost.Vx = np.zeros((ny, nx))
-    ocp.cost.Vu = np.eye(nu)
+    # Linear output functions - for controls and steering angle
+    # Map state and control to the cost function outputs
+    Vx = np.zeros((ny, nx))
+    Vx[2, 4] = 1.0  # Extract steering angle (5th state)
     
-    ocp.cost.Vx_e = np.zeros((0, nx))
+    Vu = np.zeros((ny, nu))
+    Vu[0, 0] = 1.0  # Extract acceleration (1st control)
+    Vu[1, 1] = 1.0  # Extract steering rate (2nd control)
     
-    # Reference trajectory - zero control reference
-    ocp.cost.yref = np.zeros(nu)  # Reference is zero control
-    ocp.cost.yref_e = np.zeros(0)  # No terminal cost
+    ocp.cost.Vx = Vx
+    ocp.cost.Vu = Vu
+    
+    # Terminal cost function - extract all states
+    Vx_e = np.eye(nx)  # Identity matrix to extract all states
+    ocp.cost.Vx_e = Vx_e
+    
+    # Reference trajectory - zero reference for all outputs
+    ocp.cost.yref = np.zeros(ny)  # Reference is zero for all outputs
+    
+    # Terminal reference - target values for all states
+    yref_e = np.array(ego.state_final)  # Target for all states
+    ocp.cost.yref_e = yref_e
     
     # Set prediction horizon
     ocp.solver_options.tf = sim_cfg.duration
@@ -112,7 +176,10 @@ def generate_controls(ego, sim_cfg):
     ocp.solver_options.print_level = 1
     
     # Set constraints with slack
-    eps = 1e-1  # Increased slack for better numerical stability
+    # Use smaller slack for better precision at the terminal state
+    eps_pos = 1e-1  # Slack for position
+    eps_angle = 1e-2  # Tighter slack for angles
+    eps_vel = 1e-2  # Tighter slack for velocity and steering
     
     # Control input constraints
     ocp.constraints.lbu = np.array([ego.acceleration_min, ego.steering_rate_min])
@@ -129,20 +196,20 @@ def generate_controls(ego, sim_cfg):
     # Initial state constraint
     ocp.constraints.x0 = np.array(ego.state_start)
     
-    # Terminal constraints with larger slack
+    # Terminal constraints with tighter slack for angles
     ocp.constraints.lbx_e = np.array([
-        ego.state_final[0] - eps,
-        ego.state_final[1] - eps,
-        ego.state_final[2] - eps,
-        -eps,
-        -eps
+        ego.state_final[0] - eps_pos,
+        ego.state_final[1] - eps_pos,
+        ego.state_final[2] - eps_angle,
+        -eps_vel,
+        -eps_vel
     ])
     ocp.constraints.ubx_e = np.array([
-        ego.state_final[0] + eps,
-        ego.state_final[1] + eps,
-        ego.state_final[2] + eps,
-        eps,
-        eps
+        ego.state_final[0] + eps_pos,
+        ego.state_final[1] + eps_pos,
+        ego.state_final[2] + eps_angle,
+        eps_vel,
+        eps_vel
     ])
     ocp.constraints.idxbx_e = np.array(range(nx))
     
@@ -179,7 +246,8 @@ def generate_controls(ego, sim_cfg):
     return {
         't': t,
         'x': simX,
-        'u': simU
+        'u': simU,
+        'status': status
     }
 
 def plot_results(results, ego, save_path=None):
@@ -211,7 +279,7 @@ def plot_results(results, ego, save_path=None):
         ax1.add_patch(circle)
     
     ax1.grid(True)
-    # Move legend outside of ax1 to the right
+    # Keep the xy plot legend at the upper right
     ax1.legend(bbox_to_anchor=(1.15, 1), loc='upper left')
     # Make sure the aspect ratio is equal so circles look circular
     ax1.set_aspect('equal')
@@ -221,7 +289,8 @@ def plot_results(results, ego, save_path=None):
     ax3.axhline(y=ego.velocity_max, color='k', linestyle='--', alpha=0.3, label='bounds')
     ax3.axhline(y=ego.velocity_min, color='k', linestyle='--', alpha=0.3)
     ax3.grid(True)
-    ax3.legend()
+    # Move legend to southwest corner
+    ax3.legend(loc='lower left')
     
     # Plot steering angle (moved to bottom left)
     ax5.plot(t, np.rad2deg(x[:, 4]), 'r-', label='steering angle (deg)')
@@ -229,21 +298,24 @@ def plot_results(results, ego, save_path=None):
     ax5.axhline(y=np.rad2deg(ego.steering_min), color='k', linestyle='--', alpha=0.3)
     ax5.set_xlabel('time (s)')
     ax5.grid(True)
-    ax5.legend()
+    # Move legend to southwest corner
+    ax5.legend(loc='lower left')
     
     # Right column: Controls and heading
     # Plot heading (moved to top right)
     ax2.plot(t, np.rad2deg(x[:, 2]), 'b-', label='current heading (deg)')
     ax2.axhline(y=np.rad2deg(ego.state_final[2]), color='r', linestyle='--', label='target heading')
     ax2.grid(True)
-    ax2.legend()
+    # Move legend to southwest corner
+    ax2.legend(loc='lower left')
     
     # Plot acceleration
     ax4.plot(t[:-1], u[:, 0], 'g-', label='acceleration (m/s²)')
     ax4.axhline(y=ego.acceleration_max, color='k', linestyle='--', alpha=0.3, label='bounds')
     ax4.axhline(y=ego.acceleration_min, color='k', linestyle='--', alpha=0.3)
     ax4.grid(True)
-    ax4.legend()
+    # Move legend to southwest corner
+    ax4.legend(loc='lower left')
     
     # Plot steering rate
     ax6.plot(t[:-1], np.rad2deg(u[:, 1]), 'm-', label='steering rate (deg/s)')
@@ -251,7 +323,8 @@ def plot_results(results, ego, save_path=None):
     ax6.axhline(y=np.rad2deg(ego.steering_rate_min), color='k', linestyle='--', alpha=0.3)
     ax6.set_xlabel('time (s)')
     ax6.grid(True)
-    ax6.legend()
+    # Move legend to southwest corner
+    ax6.legend(loc='lower left')
     
     plt.tight_layout()
     
@@ -261,31 +334,165 @@ def plot_results(results, ego, save_path=None):
     # Show the plot and keep it open
     plt.show(block=True)
 
+def find_minimum_duration(ego, initial_duration=None, min_duration=None, max_duration=None, 
+                       duration_range_margin=5.0, step=0.5, dt=0.1):
+    """
+    Find the minimum duration that results in a feasible path.
+    
+    Args:
+        ego: Object containing vehicle parameters and constraints
+        initial_duration: Starting duration to test (if None, will be calculated)
+        min_duration: Minimum duration to test (if None, will be calculated)
+        max_duration: Maximum duration to test (if None, will be calculated)
+        duration_range_margin: Margin to add/subtract from middle duration to set search range (default: 5.0 seconds)
+        step: Step size for decreasing duration
+        dt: Time step for discretization
+        
+    Returns:
+        Minimum feasible duration and the corresponding results
+    """
+    # Calculate a reasonable duration range based on distance and max velocity
+    start_x, start_y = ego.state_start[0], ego.state_start[1]
+    end_x, end_y = ego.state_final[0], ego.state_final[1]
+    
+    # Calculate Euclidean distance
+    distance = np.sqrt((end_x - start_x)**2 + (end_y - start_y)**2)
+    
+    # Calculate middle duration based on distance and max velocity
+    duration_middle = distance / ego.velocity_max
+    
+    # Set search range if not provided
+    if initial_duration is None:
+        initial_duration = duration_middle
+    if min_duration is None:
+        min_duration = max(duration_middle - duration_range_margin, 1.0)  # Ensure min_duration is at least 1 second
+    if max_duration is None:
+        max_duration = duration_middle + duration_range_margin
+    
+    print(f"Distance from start to goal: {distance:.2f} meters")
+    print(f"Estimated middle duration: {duration_middle:.2f} seconds")
+    print(f"Search range: {min_duration:.1f} to {max_duration:.1f} seconds")
+    print("Finding minimum feasible duration...")
+    
+    # Start with the initial duration
+    current_duration = initial_duration
+    last_feasible_duration = None
+    last_feasible_results = None
+    
+    # First try the initial duration
+    print(f"Testing initial duration: {current_duration:.1f} seconds")
+    sim_cfg = SimConfig()
+    sim_cfg.duration = current_duration
+    sim_cfg.dt = dt
+    
+    try:
+        results = generate_controls(ego, sim_cfg)
+        status = results['status']
+        
+        if status == 0:
+            print(f"✓ Duration {current_duration:.1f}s: Feasible solution found")
+            last_feasible_duration = current_duration
+            last_feasible_results = results
+        else:
+            print(f"✗ Duration {current_duration:.1f}s: Solver failed with status {status}")
+            # Try a longer duration
+            current_duration = min(current_duration + step, max_duration)
+    except Exception as e:
+        print(f"✗ Duration {current_duration:.1f}s: Error - {str(e)}")
+        # Try a longer duration
+        current_duration = min(current_duration + step, max_duration)
+    
+    # If initial duration was feasible, try decreasing
+    if last_feasible_duration is not None:
+        current_duration = last_feasible_duration - step
+        
+        # Try decreasing durations until we find the minimum
+        while current_duration >= min_duration:
+            print(f"Testing duration: {current_duration:.1f} seconds")
+            
+            sim_cfg = SimConfig()
+            sim_cfg.duration = current_duration
+            sim_cfg.dt = dt
+            
+            try:
+                results = generate_controls(ego, sim_cfg)
+                status = results['status']
+                
+                if status == 0:
+                    print(f"✓ Duration {current_duration:.1f}s: Feasible solution found")
+                    last_feasible_duration = current_duration
+                    last_feasible_results = results
+                    # Decrease duration and try again
+                    current_duration -= step
+                else:
+                    print(f"✗ Duration {current_duration:.1f}s: Solver failed with status {status}")
+                    # We've found the minimum feasible duration
+                    break
+            except Exception as e:
+                print(f"✗ Duration {current_duration:.1f}s: Error - {str(e)}")
+                # We've found the minimum feasible duration
+                break
+    # If initial duration was not feasible, try increasing
+    else:
+        # Try increasing durations until we find a feasible solution
+        while current_duration <= max_duration:
+            print(f"Testing duration: {current_duration:.1f} seconds")
+            
+            sim_cfg = SimConfig()
+            sim_cfg.duration = current_duration
+            sim_cfg.dt = dt
+            
+            try:
+                results = generate_controls(ego, sim_cfg)
+                status = results['status']
+                
+                if status == 0:
+                    print(f"✓ Duration {current_duration:.1f}s: Feasible solution found")
+                    last_feasible_duration = current_duration
+                    last_feasible_results = results
+                    break  # Found a feasible solution, no need to increase further
+                else:
+                    print(f"✗ Duration {current_duration:.1f}s: Solver failed with status {status}")
+                    # Try a longer duration
+                    current_duration += step
+            except Exception as e:
+                print(f"✗ Duration {current_duration:.1f}s: Error - {str(e)}")
+                # Try a longer duration
+                current_duration += step
+    
+    if last_feasible_duration is None:
+        print("No feasible solution found within the tested range.")
+        return None, None
+    
+    print(f"\nMinimum feasible duration: {last_feasible_duration:.1f} seconds")
+    return last_feasible_duration, last_feasible_results
+
 if __name__ == "__main__":
     # Example usage
-    class EgoConfig:
-        def __init__(self):
-            self.velocity_max = 3.0
-            self.velocity_min = 0.0
-            self.acceleration_max = 2.0
-            self.acceleration_min = -2.0
-            self.steering_max = 0.5
-            self.steering_min = -0.5
-            self.steering_rate_max = 1.0
-            self.steering_rate_min = -1.0
-            self.state_start = [0, 0, 0, 0, 0]
-            self.state_final = [20, 20, np.pi/2, 0, 0]
-            self.L = 2.7
-
-    class SimConfig:
-        def __init__(self):
-            self.duration = 30.0
-            self.dt = 0.1
-
-    # Create configurations
+    # Create ego configuration
     ego = EgoConfig()
-    sim_cfg = SimConfig()
     
-    # Generate and plot results
-    results = generate_controls(ego, sim_cfg)
-    plot_results(results, ego, save_path='path_planning_results.png') 
+    # Example of customizing weights
+    # Uncomment and modify these lines to change the behavior
+    # ego.weight_acceleration = 0.5      # Lower to allow more aggressive acceleration
+    # ego.weight_steering_rate = 2.0     # Higher to encourage smoother steering changes
+    # ego.weight_steering_angle = 10.0   # Higher to encourage straighter paths
+    
+    # Terminal weights
+    # ego.weight_terminal_position_x = 200.0  # Higher to ensure precise final x position
+    # ego.weight_terminal_position_y = 200.0  # Higher to ensure precise final y position
+    # ego.weight_terminal_heading = 200.0     # Higher to ensure precise final heading
+    # ego.weight_terminal_velocity = 50.0     # Higher to ensure precise final velocity
+    # ego.weight_terminal_steering = 50.0     # Higher to ensure precise final steering angle
+    
+    # Find minimum feasible duration using the distance-based search range
+    min_duration, min_results = find_minimum_duration(
+        ego,
+        duration_range_margin=5.0,  # +/- 5 seconds around the middle duration
+        step=1.0,
+        dt=0.1
+    )
+    
+    # Plot results if a feasible solution was found
+    if min_results is not None:
+        plot_results(min_results, ego, save_path='docs/path_planning_results.png') 
