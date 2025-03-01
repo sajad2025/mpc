@@ -241,17 +241,17 @@ The neural networks learn from successful trajectories and can quickly generate 
 The project consists of the following main components:
 
 1. **Core MPC Solver (`core_solver.py`)**: Implements the MPC solver using the Acados framework.
-2. **Neural Network Models (`nn_init_main.py`)**:
+2. **Neural Network Models (`nn_train_model.py`)**:
    - Duration Predictor: A residual network that predicts optimal trajectory duration
    - Trajectory Predictor: An LSTM network that generates trajectory initialization
-3. **Testing Script (`nn_init_test.py`)**: Compares the performance of neural network initialization vs. default initialization.
+3. **Testing Script (`nn_test_model_trajectory.py`)**: Compares the performance of neural network initialization vs. default initialization.
 
 ## Training the Models
 
 The models can be trained separately using the following functions:
 
 ```python
-from nn_init_main import train_and_save_duration_predictor, train_and_save_trajectory_predictor
+from nn_train_model import train_and_save_duration_predictor, train_and_save_trajectory_predictor
 
 # Train duration predictor
 train_and_save_duration_predictor(
@@ -310,7 +310,7 @@ Training data is generated through vehicle dynamics simulation with smooth contr
 To train the neural network model:
 
 ```python
-from nn_init_main import train_and_save_model
+from nn_train_model import train_and_save_model
 
 # Train the model
 train_and_save_model(

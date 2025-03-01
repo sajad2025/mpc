@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 from core_solver import EgoConfig, SimConfig, generate_controls
-from nn_init_main import train_and_save_duration_predictor, train_and_save_trajectory_predictor
+from nn_train_model import train_and_save_duration_predictor, train_and_save_trajectory_predictor
 import torch
 
 def test_initialization_performance(num_tests=20, train_first=True):

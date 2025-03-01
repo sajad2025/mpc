@@ -25,6 +25,14 @@ def plot_results(results, ego, save_path=None):
     ax1.plot(ego.state_start[0], ego.state_start[1], 'go', label='start')
     ax1.plot(ego.state_final[0], ego.state_final[1], 'ro', label='goal')
     
+    # Add heading arrows along the trajectory
+    arrow_step = 5  # Plot an arrow every 5 steps
+    for i in range(0, len(t), arrow_step):
+        dx = np.cos(x[i, 2])
+        dy = np.sin(x[i, 2])
+        ax1.quiver(x[i, 0], x[i, 1], dx, dy,
+                  color='b', scale=10, alpha=0.3)
+    
     # Add circles for car position at each sample
     for i in range(0, len(t), 5):  # Plot every 5th circle to avoid overcrowding
         circle = plt.Circle((x[i, 0], x[i, 1]), ego.L, fill=False, linestyle='--', 
@@ -84,8 +92,8 @@ def plot_results(results, ego, save_path=None):
     if save_path:
         plt.savefig(save_path)
     
-    # Show the plot and keep it open
-    plt.show(block=True)
+    # Close the plot window
+    plt.close()
 
 def plot_all_paths(successful_results, goal_x, goal_y, save_path=None):
     """

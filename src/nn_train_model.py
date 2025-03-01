@@ -11,6 +11,7 @@ from tqdm import tqdm
 import random
 import math
 from core_solver import EgoConfig, SimConfig, generate_controls
+from nn_train_data import generate_training_data, load_trajectory_dataset
 
 class DurationPredictor(nn.Module):
     """
@@ -301,221 +302,6 @@ def collate_trajectories(batch):
     seq_lengths = torch.tensor(seq_lengths, dtype=torch.long)
     
     return duration_inputs, trajectory_inputs, targets, durations, seq_lengths
-
-def generate_training_data(num_samples=1000, max_duration=50.0, dt=0.1, verbose=False):
-    """
-    Generate training data by simulating vehicle trajectories.
-    
-    The approach is:
-    1. Start vehicle at origin
-    2. Apply smooth control inputs with various patterns (straight, curves, U-turns)
-    3. Bring vehicle to smooth stops at random places
-    4. Reverse the trajectory to get a valid path from random point to origin
-    5. Use these trajectories as training data
-    
-    Args:
-        num_samples: Number of training samples to generate
-        max_duration: Maximum duration for trajectories
-        dt: Time step for discretization
-        verbose: Whether to print progress
-        
-    Returns:
-        List of dictionaries containing input features and target trajectories
-    """
-    data = []
-    ego = EgoConfig()
-    
-    # Progress bar
-    pbar = tqdm(total=num_samples) if verbose else None
-    
-    # Define different trajectory patterns
-    PATTERNS = ['straight', 'curve', 'u_turn', 'spiral', 'zigzag']
-    
-    while len(data) < num_samples:
-        try:
-            # Random duration between 5 and max_duration seconds
-            duration = random.uniform(5.0, max_duration)
-            
-            # Create simulation config
-            sim_cfg = SimConfig()
-            sim_cfg.duration = duration
-            sim_cfg.dt = dt
-            
-            # Number of time steps
-            N = int(duration / dt)
-            
-            # Choose a random pattern
-            pattern = random.choice(PATTERNS)
-            
-            # Generate control parameters based on pattern
-            if pattern == 'straight':
-                # Mostly straight line with small variations
-                acc_freq = random.uniform(0.05, 0.15)
-                acc_phase = random.uniform(0, 2*np.pi)
-                acc_amp = random.uniform(0.3, 0.7) * ego.acceleration_max
-                
-                steer_freq = random.uniform(0.05, 0.15)
-                steer_phase = random.uniform(0, 2*np.pi)
-                steer_amp = random.uniform(0.05, 0.15) * ego.steering_rate_max
-                
-            elif pattern == 'curve':
-                # Constant curvature with smooth entry and exit
-                acc_freq = random.uniform(0.1, 0.3)
-                acc_phase = random.uniform(0, 2*np.pi)
-                acc_amp = random.uniform(0.4, 0.8) * ego.acceleration_max
-                
-                steer_freq = random.uniform(0.05, 0.15)  # Lower frequency for smoother curves
-                steer_phase = random.uniform(0, 2*np.pi)
-                steer_amp = random.uniform(0.3, 0.6) * ego.steering_rate_max
-                
-            elif pattern == 'u_turn':
-                # Strong steering in one direction with appropriate speed control
-                acc_freq = random.uniform(0.1, 0.2)
-                acc_phase = random.uniform(0, 2*np.pi)
-                acc_amp = random.uniform(0.3, 0.6) * ego.acceleration_max  # Lower speed for tight turn
-                
-                steer_freq = random.uniform(0.05, 0.1)  # Very low frequency for sustained turn
-                steer_phase = 0  # Start turning immediately
-                steer_amp = random.uniform(0.7, 0.9) * ego.steering_rate_max  # Strong steering
-                
-            elif pattern == 'spiral':
-                # Gradually increasing steering with steady speed
-                acc_freq = random.uniform(0.1, 0.2)
-                acc_phase = random.uniform(0, 2*np.pi)
-                acc_amp = random.uniform(0.4, 0.7) * ego.acceleration_max
-                
-                steer_freq = random.uniform(0.2, 0.4)  # Higher frequency for spiral
-                steer_phase = random.uniform(0, 2*np.pi)
-                steer_amp = random.uniform(0.4, 0.7) * ego.steering_rate_max
-                
-            else:  # zigzag
-                # Alternating steering with steady speed
-                acc_freq = random.uniform(0.1, 0.2)
-                acc_phase = random.uniform(0, 2*np.pi)
-                acc_amp = random.uniform(0.4, 0.7) * ego.acceleration_max
-                
-                steer_freq = random.uniform(0.3, 0.5)  # High frequency for zigzag
-                steer_phase = random.uniform(0, 2*np.pi)
-                steer_amp = random.uniform(0.5, 0.8) * ego.steering_rate_max
-            
-            # Initialize state
-            state = np.array([0.0, 0.0, 0.0, 0.0, 0.0])  # [x, y, theta, v, steering]
-            
-            # Simulate forward trajectory
-            states = [state.copy()]
-            controls = []
-            
-            for i in range(N):
-                t = i * dt
-                
-                # Smooth sinusoidal control inputs with pattern-specific modulation
-                # Taper controls to zero at the end for smooth stopping
-                taper = max(0, 1 - (i / N) * 3)  # Taper factor (goes to 0 in the last third)
-                
-                if pattern == 'u_turn':
-                    # Special handling for U-turn: maintain steering direction
-                    progress = i / N
-                    if progress < 0.4:  # Initial straight
-                        steer_mod = 0.2
-                    elif 0.4 <= progress < 0.7:  # U-turn phase
-                        steer_mod = 1.0
-                    else:  # Final straight
-                        steer_mod = 0.2
-                else:
-                    steer_mod = 1.0
-                
-                acc = acc_amp * np.sin(2 * np.pi * acc_freq * t + acc_phase) * taper
-                steer_rate = steer_amp * np.sin(2 * np.pi * steer_freq * t + steer_phase) * taper * steer_mod
-                
-                # Add some randomness to make paths more diverse
-                acc += random.uniform(-0.1, 0.1) * ego.acceleration_max * taper
-                steer_rate += random.uniform(-0.1, 0.1) * ego.steering_rate_max * taper
-                
-                # Clip controls to respect limits
-                acc = np.clip(acc, ego.acceleration_min, ego.acceleration_max)
-                steer_rate = np.clip(steer_rate, ego.steering_rate_min, ego.steering_rate_max)
-                
-                controls.append([acc, steer_rate])
-                
-                # Update state using vehicle dynamics
-                x, y, theta, v, steering = state
-                
-                # State update equations (same as in the MPC model)
-                x_new = x + v * np.cos(theta) * dt
-                y_new = y + v * np.sin(theta) * dt
-                theta_new = theta + v * np.tan(steering) / ego.L * dt
-                v_new = v + acc * dt
-                steering_new = steering + steer_rate * dt
-                
-                # Clip velocity and steering to respect limits
-                v_new = np.clip(v_new, ego.velocity_min, ego.velocity_max)
-                steering_new = np.clip(steering_new, ego.steering_min, ego.steering_max)
-                
-                # Update state
-                state = np.array([x_new, y_new, theta_new, v_new, steering_new])
-                states.append(state.copy())
-            
-            # Get final state (should have near-zero velocity and steering)
-            final_state = states[-1]
-            
-            # Check if final state has sufficiently small velocity and steering
-            if abs(final_state[3]) > 0.1 or abs(final_state[4]) > 0.05:
-                continue  # Skip this sample if not stopped properly
-            
-            # Create reversed trajectory (from final state to origin)
-            reversed_states = states[::-1]
-            
-            # Extract start and end states for the reversed trajectory
-            start_state = reversed_states[0].copy()
-            end_state = reversed_states[-1].copy()
-            
-            # Ensure final velocity and steering are exactly zero
-            start_state[3] = 0.0
-            start_state[4] = 0.0
-            end_state[3] = 0.0
-            end_state[4] = 0.0
-            
-            # Create input features
-            input_features = np.concatenate([
-                start_state,  # 5 elements
-                end_state,    # 5 elements
-                [duration],   # 1 element
-                [dt]          # 1 element
-            ])
-            
-            # Create sample
-            sample = {
-                'input': input_features,
-                'target': np.array(reversed_states),
-                'duration': duration,
-                'dt': dt,
-                'pattern': pattern  # Store the pattern for analysis
-            }
-            
-            data.append(sample)
-            
-            if verbose:
-                pbar.update(1)
-                
-        except Exception as e:
-            if verbose:
-                print(f"Error generating sample: {str(e)}")
-            continue
-    
-    if verbose:
-        pbar.close()
-        
-        # Print pattern distribution
-        pattern_counts = {}
-        for sample in data:
-            pattern = sample['pattern']
-            pattern_counts[pattern] = pattern_counts.get(pattern, 0) + 1
-        
-        print("\nPattern distribution in generated data:")
-        for pattern, count in pattern_counts.items():
-            print(f"{pattern}: {count} ({count/len(data)*100:.1f}%)")
-    
-    return data
 
 def train_trajectory_predictor(model, train_loader, val_loader, num_epochs=50, learning_rate=1e-3, device='cuda'):
     """
@@ -960,8 +746,45 @@ def train_and_save_duration_predictor(num_samples=1000, batch_size=32, num_epoch
     """
     Train and save only the duration predictor model with the new architecture.
     """
-    print("Generating training data...")
-    data = generate_training_data(num_samples=num_samples, max_duration=max_duration, dt=0.1, verbose=True)
+    # Check if dataset exists first
+    dataset_path = 'models/trajectory_dataset.npz'
+    data = None
+    
+    if os.path.exists(dataset_path):
+        print(f"Loading existing dataset from {dataset_path}...")
+        dataset = load_trajectory_dataset(dataset_path)
+        if dataset is not None:
+            # Convert the loaded dataset back to the format expected by the training code
+            data = []
+            inputs = dataset['inputs']
+            targets = dataset['targets']
+            durations = dataset['durations']
+            dt = dataset['dt']
+            trajectory_lengths = dataset['trajectory_lengths']
+            
+            for i in range(len(inputs)):
+                # Get the actual trajectory length for this sample
+                actual_length = int(trajectory_lengths[i]) if trajectory_lengths is not None else targets[i].shape[0]
+                
+                # Use the actual length to get the unpadded trajectory
+                actual_target = targets[i][:actual_length]
+                
+                sample = {
+                    'input': inputs[i],
+                    'target': actual_target,
+                    'duration': durations[i],
+                    'dt': dt,
+                    'state_start': inputs[i][:5],
+                    'state_end': inputs[i][5:10],
+                    'states': actual_target,
+                    'N': actual_length
+                }
+                data.append(sample)
+            print(f"Successfully loaded {len(data)} samples from existing dataset.")
+    
+    if data is None:
+        print("No existing dataset found. Generating training data...")
+        data = generate_training_data(verbose=True)
     
     # Split data into training and validation sets
     train_size = int(0.8 * len(data))
@@ -1064,8 +887,45 @@ def train_and_save_trajectory_predictor(num_samples=100, batch_size=32, num_epoc
     """
     Train and save only the trajectory predictor model.
     """
-    print("Generating training data...")
-    data = generate_training_data(num_samples=num_samples, max_duration=max_duration, dt=0.1, verbose=True)
+    # Check if dataset exists first
+    dataset_path = 'models/trajectory_dataset.npz'
+    data = None
+    
+    if os.path.exists(dataset_path):
+        print(f"Loading existing dataset from {dataset_path}...")
+        dataset = load_trajectory_dataset(dataset_path)
+        if dataset is not None:
+            # Convert the loaded dataset back to the format expected by the training code
+            data = []
+            inputs = dataset['inputs']
+            targets = dataset['targets']
+            durations = dataset['durations']
+            dt = dataset['dt']
+            trajectory_lengths = dataset['trajectory_lengths']
+            
+            for i in range(len(inputs)):
+                # Get the actual trajectory length for this sample
+                actual_length = int(trajectory_lengths[i]) if trajectory_lengths is not None else targets[i].shape[0]
+                
+                # Use the actual length to get the unpadded trajectory
+                actual_target = targets[i][:actual_length]
+                
+                sample = {
+                    'input': inputs[i],
+                    'target': actual_target,
+                    'duration': durations[i],
+                    'dt': dt,
+                    'state_start': inputs[i][:5],
+                    'state_end': inputs[i][5:10],
+                    'states': actual_target,
+                    'N': actual_length
+                }
+                data.append(sample)
+            print(f"Successfully loaded {len(data)} samples from existing dataset.")
+    
+    if data is None:
+        print("No existing dataset found. Generating training data...")
+        data = generate_training_data(verbose=True)
     
     # Split data into training and validation sets
     train_size = int(0.8 * len(data))

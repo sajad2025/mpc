@@ -4,7 +4,7 @@ import os
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-from nn_init_main import DurationPredictor, load_model, find_best_duration, preprocess_duration_inputs
+from nn_train_model import DurationPredictor, load_model, find_best_duration, preprocess_duration_inputs
 from core_solver import EgoConfig, SimConfig
 
 def test_duration_predictor_raw(model, input_tensor, distance=None):
@@ -492,7 +492,7 @@ def main():
     # Create directories
     os.makedirs('docs/nn_debug', exist_ok=True)
     
-    # Define test scenarios (same as in nn_init_example.py)
+    # Define test scenarios (same as in nn_test_scenarios.py)
     scenarios = [
         {
             'name': 'Simple Forward',
@@ -527,7 +527,7 @@ def main():
     model_path = 'models/duration_predictor.pt'
     if not os.path.exists(model_path):
         print(f"Error: Model not found at {model_path}")
-        print("Please train the model first using nn_init_main.py")
+        print("Please train the model first using nn_train_model.py")
         return
     
     # Load the model

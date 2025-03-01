@@ -5,7 +5,7 @@ import time
 import numpy as np
 from core_solver import EgoConfig, SimConfig, generate_controls
 from plots import plot_comparison
-from nn_init_main import train_and_save_duration_predictor, train_and_save_trajectory_predictor, find_best_duration
+from nn_train_model import train_and_save_duration_predictor, train_and_save_trajectory_predictor, find_best_duration
 
 def run_solver(ego, sim, use_nn_init):
     """

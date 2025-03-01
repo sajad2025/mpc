@@ -8,7 +8,7 @@ from acados_template import AcadosOcp, AcadosOcpSolver, AcadosModel
 
 # Import the neural network initializer if available
 try:
-    from nn_init_main import find_best_trajectory
+    from nn_train_model import find_best_trajectory
     has_nn_initializer = True
 except ImportError:
     has_nn_initializer = False
@@ -157,7 +157,7 @@ def calc_time_range(ego, duration_range_margin=5.0):
     
     return initial_duration, min_duration, max_duration, distance
 
-def generate_controls(ego, sim_cfg, use_nn_init=True):
+def generate_controls(ego, sim_cfg, use_nn_init=True, v_init=None, steering_init=None):
     """
     Generate optimal controls for path planning using Acados.
     
@@ -165,6 +165,8 @@ def generate_controls(ego, sim_cfg, use_nn_init=True):
         ego: Object containing vehicle parameters and constraints
         sim_cfg: Object containing simulation parameters
         use_nn_init: Whether to use neural network for initialization
+        v_init: Optional vector of initial velocity values for each node
+        steering_init: Optional vector of initial steering values for each node
     
     Returns:
         Dictionary containing:
@@ -358,6 +360,17 @@ def generate_controls(ego, sim_cfg, use_nn_init=True):
     
     # If neural network initialization is not used or failed, use default initialization
     if not use_nn_init or not has_nn_initializer:
+        # Check if custom initialization vectors are provided
+        has_custom_init = v_init is not None and steering_init is not None
+        
+        # Calculate longitudinal error for default initialization if needed
+        if not has_custom_init:
+            x_bar = ego.state_start[0] - ego.state_final[0]
+            y_bar = ego.state_start[1] - ego.state_final[1]
+            theta_bar = ego.state_start[2] - ego.state_final[2]
+            lat_err = +y_bar * cos(ego.state_final[2]) - x_bar * sin(ego.state_final[2])
+            lng_err = -y_bar * sin(ego.state_final[2]) - x_bar * cos(ego.state_final[2])
+        
         # Initialize with a simple straight line trajectory
         for i in range(N):
             t = float(i) / N
@@ -365,17 +378,16 @@ def generate_controls(ego, sim_cfg, use_nn_init=True):
             y_init = ego.state_start[1] + t * (ego.state_final[1] - ego.state_start[1])
             theta_init = ego.state_start[2] + t * (ego.state_final[2] - ego.state_start[2])
             
-            # Calculate longitudinal error to determine velocity direction
-            x_bar = ego.state_start[0] - ego.state_final[0]
-            y_bar = ego.state_start[1] - ego.state_final[1]
-            theta_bar = ego.state_start[2] - ego.state_final[2]
-            lat_err = +y_bar * cos(ego.state_final[2]) - x_bar * sin(ego.state_final[2])
-            lng_err = -y_bar * sin(ego.state_final[2]) - x_bar * cos(ego.state_final[2])
+            # Use provided initialization vectors if available, otherwise use default values
+            if has_custom_init:
+                v_init_val = v_init[i]
+                steering_init_val = steering_init[i]
+            else:
+                # Default initialization as before
+                v_init_val = 1.0 if lng_err < 0.2 else 1.0
+                steering_init_val = 0.0
             
-            v_init = 1.0 if lng_err < 0.2 else 1.0
-            steering_init = 0.0
-            # print(f"v_init: {v_init} , lat_err: {lat_err} , steering_init: {steering_init}, cos_hb: {cos(theta_bar)}, lng_err: {lng_err}")
-            acados_solver.set(i, "x", np.array([x_init, y_init, theta_init, v_init, steering_init]))
+            acados_solver.set(i, "x", np.array([x_init, y_init, theta_init, v_init_val, steering_init_val]))
     
     # Solve OCP
     status = acados_solver.solve()
