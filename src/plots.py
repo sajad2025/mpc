@@ -150,4 +150,123 @@ def plot_all_paths(successful_results, goal_x, goal_y, save_path=None):
         plt.savefig(save_path, bbox_inches='tight')
     
     # Show plot
-    plt.show() 
+    plt.show()
+
+def plot_comparison(default_results, nn_results, ego, computation_times=None, durations=None, save_path=None):
+    """
+    Plot comparison between default and neural network initialization results.
+    
+    Args:
+        default_results: Dictionary containing results from default initialization
+        nn_results: Dictionary containing results from neural network initialization
+        ego: Object containing vehicle parameters
+        computation_times: Optional tuple of (default_time, nn_time) for displaying computation times
+        durations: Optional tuple of (default_duration, nn_duration) for displaying durations
+        save_path: Optional path to save the plot
+    """
+    # Create subplots (3x2 grid)
+    fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2, figsize=(12, 10))
+    
+    # Time arrays
+    t_default = default_results['t']
+    t_nn = nn_results['t']
+    
+    # Plot trajectories
+    ax1.plot(default_results['x'][:, 0], default_results['x'][:, 1], 'b-', label='Default Init')
+    ax1.plot(nn_results['x'][:, 0], nn_results['x'][:, 1], 'r-', label='NN Init')
+    ax1.plot(ego.state_start[0], ego.state_start[1], 'go', markersize=10, label='Start')
+    ax1.plot(ego.state_final[0], ego.state_final[1], 'ko', markersize=10, label='Goal')
+    
+    # Add car orientation arrows
+    arrow_step = 5  # Plot an arrow every 5 steps
+    max_arrows = min(len(t_default), len(t_nn))  # Use the shorter trajectory length
+    for i in range(0, max_arrows, arrow_step):
+        # Default initialization arrows
+        dx = np.cos(default_results['x'][i, 2])
+        dy = np.sin(default_results['x'][i, 2])
+        ax1.quiver(default_results['x'][i, 0], default_results['x'][i, 1], dx, dy,
+                  color='b', scale=10, alpha=0.3)
+        
+        # Neural network initialization arrows
+        dx = np.cos(nn_results['x'][i, 2])
+        dy = np.sin(nn_results['x'][i, 2])
+        ax1.quiver(nn_results['x'][i, 0], nn_results['x'][i, 1], dx, dy,
+                  color='r', scale=10, alpha=0.3)
+    
+    ax1.grid(True)
+    ax1.set_aspect('equal')
+    ax1.set_xlabel('X (m)')
+    ax1.set_ylabel('Y (m)')
+    
+    # Add computation times and durations to title if provided
+    title = 'Path Comparison\n'
+    if computation_times:
+        default_time, nn_time = computation_times
+        improvement = (default_time - nn_time) / default_time * 100
+        title += f'Solve time: Default={default_time:.3f}s, NN={nn_time:.3f}s ({improvement:.1f}% faster)\n'
+    if durations:
+        default_duration, nn_duration = durations
+        title += f'Duration: Default={default_duration:.1f}s, NN={nn_duration:.1f}s'
+    ax1.set_title(title)
+    ax1.legend()
+    
+    # Plot heading
+    ax2.plot(t_default, np.rad2deg(default_results['x'][:, 2]), 'b-', label='Default Init')
+    ax2.plot(t_nn, np.rad2deg(nn_results['x'][:, 2]), 'r-', label='NN Init')
+    ax2.axhline(y=np.rad2deg(ego.state_final[2]), color='k', linestyle='--', label='Target')
+    ax2.grid(True)
+    ax2.set_xlabel('Time (s)')
+    ax2.set_ylabel('Heading (deg)')
+    ax2.set_title('Heading Angle')
+    ax2.legend()
+    
+    # Plot velocity
+    ax3.plot(t_default, default_results['x'][:, 3], 'b-', label='Default Init')
+    ax3.plot(t_nn, nn_results['x'][:, 3], 'r-', label='NN Init')
+    ax3.axhline(y=ego.velocity_max, color='k', linestyle='--', alpha=0.3)
+    ax3.axhline(y=ego.velocity_min, color='k', linestyle='--', alpha=0.3)
+    ax3.grid(True)
+    ax3.set_xlabel('Time (s)')
+    ax3.set_ylabel('Velocity (m/s)')
+    ax3.set_title('Velocity Profile')
+    ax3.legend()
+    
+    # Plot steering angle
+    ax4.plot(t_default, np.rad2deg(default_results['x'][:, 4]), 'b-', label='Default Init')
+    ax4.plot(t_nn, np.rad2deg(nn_results['x'][:, 4]), 'r-', label='NN Init')
+    ax4.axhline(y=np.rad2deg(ego.steering_max), color='k', linestyle='--', alpha=0.3)
+    ax4.axhline(y=np.rad2deg(ego.steering_min), color='k', linestyle='--', alpha=0.3)
+    ax4.grid(True)
+    ax4.set_xlabel('Time (s)')
+    ax4.set_ylabel('Steering Angle (deg)')
+    ax4.set_title('Steering Profile')
+    ax4.legend()
+    
+    # Plot acceleration
+    ax5.plot(t_default[:-1], default_results['u'][:, 0], 'b-', label='Default Init')
+    ax5.plot(t_nn[:-1], nn_results['u'][:, 0], 'r-', label='NN Init')
+    ax5.axhline(y=ego.acceleration_max, color='k', linestyle='--', alpha=0.3)
+    ax5.axhline(y=ego.acceleration_min, color='k', linestyle='--', alpha=0.3)
+    ax5.grid(True)
+    ax5.set_xlabel('Time (s)')
+    ax5.set_ylabel('Acceleration (m/s²)')
+    ax5.set_title('Acceleration Profile')
+    ax5.legend()
+    
+    # Plot steering rate
+    ax6.plot(t_default[:-1], np.rad2deg(default_results['u'][:, 1]), 'b-', label='Default Init')
+    ax6.plot(t_nn[:-1], np.rad2deg(nn_results['u'][:, 1]), 'r-', label='NN Init')
+    ax6.axhline(y=np.rad2deg(ego.steering_rate_max), color='k', linestyle='--', alpha=0.3)
+    ax6.axhline(y=np.rad2deg(ego.steering_rate_min), color='k', linestyle='--', alpha=0.3)
+    ax6.grid(True)
+    ax6.set_xlabel('Time (s)')
+    ax6.set_ylabel('Steering Rate (deg/s)')
+    ax6.set_title('Steering Rate Profile')
+    ax6.legend()
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    
+    plt.close() 

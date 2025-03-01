@@ -1,6 +1,8 @@
-numpy>=2.2.0
-scipy>=1.15.0
-matplotlib>=3.10.0
-casadi>=3.6.0
+numpy>=1.19.0
+matplotlib>=3.3.0
+torch>=1.7.0
+tqdm>=4.50.0
+casadi>=3.5.5
+acados_template>=0.1.0
 future-fstrings>=1.2.0
 cython>=3.0.0 

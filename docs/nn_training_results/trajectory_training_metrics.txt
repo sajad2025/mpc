@@ -1,0 +1,14 @@
+Training Configuration:
+- Number of samples: 1000
+- Batch size: 32
+- Number of epochs: 50
+- Hidden size: 128
+- Number of LSTM layers: 2
+- Dropout rate: 0.1
+- Learning rate: 0.001
+- Maximum duration: 50.0
+
+Trajectory Predictor Results:
+- Final training loss: 0.169105
+- Final validation loss: 0.120975
+- Best validation loss: 0.120975

@@ -1,0 +1,8 @@
+=== Performance Statistics ===
+Default initialization:
+  Success rate: 85.00%
+  Average time: 1.046s
+Neural network initialization:
+  Success rate: 85.00%
+  Average time: 0.971s
+Time improvement: 7.12%

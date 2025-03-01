@@ -6,6 +6,14 @@ import scipy.linalg
 from casadi import *
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosModel
 
+# Import the neural network initializer if available
+try:
+    from nn_init_main import find_best_trajectory
+    has_nn_initializer = True
+except ImportError:
+    has_nn_initializer = False
+    print("Neural network initializer not available. Using default initialization.")
+
 class EgoConfig:
     def __init__(self):
         # Vehicle physical parameters
@@ -149,13 +157,14 @@ def calc_time_range(ego, duration_range_margin=5.0):
     
     return initial_duration, min_duration, max_duration, distance
 
-def generate_controls(ego, sim_cfg):
+def generate_controls(ego, sim_cfg, use_nn_init=True):
     """
     Generate optimal controls for path planning using Acados.
     
     Args:
         ego: Object containing vehicle parameters and constraints
         sim_cfg: Object containing simulation parameters
+        use_nn_init: Whether to use neural network for initialization
     
     Returns:
         Dictionary containing:
@@ -325,32 +334,48 @@ def generate_controls(ego, sim_cfg):
     simX = np.ndarray((N+1, nx))
     simU = np.ndarray((N, nu))
     
-    # Initialize with a simple straight line trajectory
-    for i in range(N):
-        t = float(i) / N
-        x_init = ego.state_start[0] + t * (ego.state_final[0] - ego.state_start[0])
-        y_init = ego.state_start[1] + t * (ego.state_final[1] - ego.state_start[1])
-        theta_init = ego.state_start[2] + t * (ego.state_final[2] - ego.state_start[2])
-        
-        # Calculate longitudinal error to determine velocity direction
-        x_bar = ego.state_start[0] - ego.state_final[0]
-        y_bar = ego.state_start[1] - ego.state_final[1]
-        theta_bar = ego.state_start[2] - ego.state_final[2]
-        lat_err = +y_bar * cos(ego.state_final[2]) - x_bar * sin(ego.state_final[2])
-        lng_err = -y_bar * sin(ego.state_final[2]) - x_bar * cos(ego.state_final[2])
-        
-        # Set velocity initialization based on longitudinal error
-        # if i < 1:
-        #     if lng_err < 0.2:
-        #         v_init = -1.0 if lat_err < 0  else 1.0
-        #     else:
-        #         v_init = 1.0  # Positive velocity when approaching target from front
-        # else:
-        #     v_init = 1.0  # Positive velocity when approaching target from front
-        v_init = -1.0 if lng_err < 0.2 else 1.0
-        steering_init = 0.0
-        # print(f"v_init: {v_init} , lat_err: {lat_err} , steering_init: {steering_init}, cos_hb: {cos(theta_bar)}, lng_err: {lng_err}")
-        acados_solver.set(i, "x", np.array([x_init, y_init, theta_init, v_init, steering_init]))
+    # Choose initialization method
+    if use_nn_init and has_nn_initializer:
+        # Use neural network for initialization
+        try:
+            # Get initialization trajectory using provided duration
+            init_traj = find_best_trajectory(
+                state_start=np.array(ego.state_start),
+                state_end=np.array(ego.state_final),
+                duration=sim_cfg.duration,
+                dt=sim_cfg.dt
+            )
+            
+            # Set initialization for each node
+            for i in range(N):
+                acados_solver.set(i, "x", init_traj[i])
+                
+            print("Using neural network initialization")
+        except Exception as e:
+            print(f"Error using neural network initialization: {str(e)}")
+            print("Falling back to default initialization")
+            use_nn_init = False
+    
+    # If neural network initialization is not used or failed, use default initialization
+    if not use_nn_init or not has_nn_initializer:
+        # Initialize with a simple straight line trajectory
+        for i in range(N):
+            t = float(i) / N
+            x_init = ego.state_start[0] + t * (ego.state_final[0] - ego.state_start[0])
+            y_init = ego.state_start[1] + t * (ego.state_final[1] - ego.state_start[1])
+            theta_init = ego.state_start[2] + t * (ego.state_final[2] - ego.state_start[2])
+            
+            # Calculate longitudinal error to determine velocity direction
+            x_bar = ego.state_start[0] - ego.state_final[0]
+            y_bar = ego.state_start[1] - ego.state_final[1]
+            theta_bar = ego.state_start[2] - ego.state_final[2]
+            lat_err = +y_bar * cos(ego.state_final[2]) - x_bar * sin(ego.state_final[2])
+            lng_err = -y_bar * sin(ego.state_final[2]) - x_bar * cos(ego.state_final[2])
+            
+            v_init = 1.0 if lng_err < 0.2 else 1.0
+            steering_init = 0.0
+            # print(f"v_init: {v_init} , lat_err: {lat_err} , steering_init: {steering_init}, cos_hb: {cos(theta_bar)}, lng_err: {lng_err}")
+            acados_solver.set(i, "x", np.array([x_init, y_init, theta_init, v_init, steering_init]))
     
     # Solve OCP
     status = acados_solver.solve()
