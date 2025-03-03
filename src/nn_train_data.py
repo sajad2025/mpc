@@ -24,8 +24,8 @@ def generate_training_data(dt=0.1, verbose=False):
     data = []
     
     # Define grid of goal positions and headings
-    x_positions = [-10.0, 0.0, 10.0]  # x coordinates
-    y_positions = [-10.0, 0.0, 10.0]  # y coordinates
+    x_positions = [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50]  # x coordinates
+    y_positions = [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50]  # y coordinates
     headings    = [0, np.pi, np.pi/2, 3*np.pi/2]  # 0°, 180°, 90°, 270°
     
     # Calculate total number of samples

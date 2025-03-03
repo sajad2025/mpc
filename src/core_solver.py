@@ -38,6 +38,7 @@ class EgoConfig:
         self.weight_acceleration = 1.0
         self.weight_steering_rate = 100.0
         self.weight_steering_angle = 1.0
+        self.weight_velocity = 1.0
         
         # Terminal cost weights for all states
         self.weight_terminal_position_x = 100.0
@@ -51,7 +52,7 @@ class EgoConfig:
         """
         Normalize angle to be within [-π, π]
         """
-        return ((angle + np.pi) % (2 * np.pi)) - np.pi
+        return ((angle + 1*np.pi) % (2 * np.pi)) - 1*np.pi
     
     @property
     def state_start(self):
@@ -223,19 +224,20 @@ def generate_controls(ego, sim_cfg, use_nn_init=True, v_init=None, steering_init
     ocp.cost.cost_type = 'LINEAR_LS'
     ocp.cost.cost_type_e = 'LINEAR_LS'
     
-    # Penalize control inputs and steering angle
-    ny = nu + 1  # number of outputs in cost function: [acceleration, steering_rate, steering_angle]
+    # Penalize control inputs, steering angle, and velocity
+    ny = nu + 2  # number of outputs in cost function: [acceleration, steering_rate, steering_angle, velocity]
     ny_e = nx  # Terminal cost for all states: [x, y, theta, velocity, steering]
     
     ocp.dims.ny = ny
     ocp.dims.ny_e = ny_e
     
-    # Cost matrix - weights for [acceleration, steering_rate, steering_angle]
+    # Cost matrix - weights for [acceleration, steering_rate, steering_angle, velocity]
     # Use weights from ego config
     R = np.diag([
         ego.weight_acceleration,
         ego.weight_steering_rate,
-        ego.weight_steering_angle
+        ego.weight_steering_angle,
+        ego.weight_velocity
     ])
     
     ocp.cost.W = R
@@ -255,6 +257,7 @@ def generate_controls(ego, sim_cfg, use_nn_init=True, v_init=None, steering_init
     # Map state and control to the cost function outputs
     Vx = np.zeros((ny, nx))
     Vx[2, 4] = 1.0  # Extract steering angle (5th state)
+    Vx[3, 3] = 1.0  # Extract velocity (4th state)
     
     Vu = np.zeros((ny, nu))
     Vu[0, 0] = 1.0  # Extract acceleration (1st control)
@@ -282,7 +285,7 @@ def generate_controls(ego, sim_cfg, use_nn_init=True, v_init=None, steering_init
     ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
     ocp.solver_options.integrator_type = 'ERK'
     ocp.solver_options.nlp_solver_type = 'SQP'
-    ocp.solver_options.nlp_solver_max_iter = 100
+    ocp.solver_options.nlp_solver_max_iter = 200
     ocp.solver_options.levenberg_marquardt = 1e-2
     ocp.solver_options.qp_solver_cond_N = 5
     
@@ -305,8 +308,8 @@ def generate_controls(ego, sim_cfg, use_nn_init=True, v_init=None, steering_init
     # State constraints - relaxed bounds for better convergence
     x_max = 100.0
     y_max = 100.0
-    ocp.constraints.lbx = np.array([-x_max, -y_max, -4*np.pi, ego.velocity_min, ego.steering_min])  # Use ego velocity limits
-    ocp.constraints.ubx = np.array([x_max, y_max, 4*np.pi, ego.velocity_max, ego.steering_max])  # Use ego velocity limits
+    ocp.constraints.lbx = np.array([-x_max, -y_max, -np.pi, ego.velocity_min, ego.steering_min])  # Use ego velocity limits
+    ocp.constraints.ubx = np.array([x_max, y_max, np.pi, ego.velocity_max, ego.steering_max])  # Use ego velocity limits
     ocp.constraints.idxbx = np.array(range(nx))
     
     # Initial state constraint
@@ -391,6 +394,10 @@ def generate_controls(ego, sim_cfg, use_nn_init=True, v_init=None, steering_init
     
     # Solve OCP
     status = acados_solver.solve()
+    
+    # If solver did not succeed, return None
+    if status != 0:
+        return None
     
     # Get solution
     for i in range(N):

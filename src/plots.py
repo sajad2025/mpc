@@ -3,7 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot_results(results, ego, save_path=None):
+def plot_results(results, ego, save_path=None, show_plot=False):
     """
     Plot the path planning results.
     
@@ -11,6 +11,7 @@ def plot_results(results, ego, save_path=None):
         results: Dictionary containing t, x, and u from generate_controls
         ego: Object containing vehicle parameters
         save_path: Optional path to save the plot
+        show_plot: Whether to keep the plot window open (True) or close it (False, default)
     """
     t = results['t']
     x = results['x']
@@ -92,8 +93,11 @@ def plot_results(results, ego, save_path=None):
     if save_path:
         plt.savefig(save_path)
     
-    # Close the plot window
-    plt.close()
+    # Show the plot if show_plot is True, otherwise close it
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
 
 def plot_all_paths(successful_results, goal_x, goal_y, save_path=None):
     """
@@ -105,33 +109,59 @@ def plot_all_paths(successful_results, goal_x, goal_y, save_path=None):
         goal_y: Goal y-coordinate
         save_path: Optional path to save the plot
     """
-    # Create figure with proper layout for colorbar
+    # Create figure
     fig = plt.figure(figsize=(12, 10))
-    gs = plt.GridSpec(1, 20)  # 1 row, 20 columns
-    ax = fig.add_subplot(gs[0, :19])  # Main plot takes 19/20 of the width
-    cax = fig.add_subplot(gs[0, 19])  # Colorbar takes 1/20 of the width
+    ax = fig.add_subplot(111)
     
     # Plot goal position
     ax.plot(goal_x, goal_y, 'ro', markersize=10, label='Goal')
     
-    # Plot each path with a different color
-    cmap = plt.cm.viridis
-    colors = [cmap(i) for i in np.linspace(0, 1, len(successful_results))]
+    # Define colors for different heading directions
+    # Blue for north/south (around 0 and π radians)
+    # Green for east/west (around π/2 and 3π/2 radians)
     
-    for i, result in enumerate(successful_results):
+    # Create a legend handles list
+    legend_handles = [
+        plt.Line2D([0], [0], color='blue', lw=2, label='North/South Initial Heading'),
+        plt.Line2D([0], [0], color='green', lw=2, label='East/West Initial Heading')
+    ]
+    
+    for result in successful_results:
         # Extract path data
         path = result['results']['x']
         start_x, start_y, start_theta = result['start']
         
+        # Normalize angle to [0, 2π)
+        normalized_theta = start_theta % (2 * np.pi)
+        
+        # Determine color based on heading direction
+        # North/South: around 0, π (with some tolerance)
+        # East/West: around π/2, 3π/2 (with some tolerance)
+        north_south_angles = [0, np.pi]
+        east_west_angles = [np.pi/2, 3*np.pi/2]
+        
+        # Check if angle is close to north/south or east/west
+        # Using a tolerance of π/4 radians (45 degrees)
+        tolerance = np.pi/4
+        
+        is_north_south = any(abs((normalized_theta - angle + np.pi) % (2*np.pi) - np.pi) < tolerance 
+                             for angle in north_south_angles)
+        
+        # If it's not north/south, it must be east/west
+        if is_north_south:
+            color = 'blue'
+        else:
+            color = 'green'
+        
         # Plot path
-        ax.plot(path[:, 0], path[:, 1], '-', color=colors[i], linewidth=1, alpha=0.7)
+        ax.plot(path[:, 0], path[:, 1], '-', color=color, linewidth=1, alpha=0.7)
         
         # Plot start position with an arrow to show heading
         arrow_length = 1.0
         dx = arrow_length * np.cos(start_theta)
         dy = arrow_length * np.sin(start_theta)
         ax.arrow(start_x, start_y, dx, dy, head_width=0.3, head_length=0.5, 
-                fc=colors[i], ec=colors[i], alpha=0.7)
+                fc=color, ec=color, alpha=0.7)
     
     # Add grid
     ax.grid(True)
@@ -144,11 +174,8 @@ def plot_all_paths(successful_results, goal_x, goal_y, save_path=None):
     ax.set_ylabel('Y (m)')
     ax.set_title(f'Path Planning from Multiple Initial Positions\n{len(successful_results)} successful paths')
     
-    # Add colorbar to show path index
-    norm = plt.Normalize(0, len(successful_results)-1)
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    plt.colorbar(sm, cax=cax, label='Path Index')
+    # Add legend
+    ax.legend(handles=legend_handles, loc='best')
     
     # Tight layout
     plt.tight_layout()

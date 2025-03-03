@@ -71,9 +71,9 @@ def find_path(ego, duration, dt=0.1, verbose=True):
         # Suppress output if not verbose
         if not verbose:
             with SuppressOutput():
-                results = generate_controls(ego, sim_cfg, use_nn_init=True)
+                results = generate_controls(ego, sim_cfg, use_nn_init=False)
         else:
-            results = generate_controls(ego, sim_cfg, use_nn_init=True)
+            results = generate_controls(ego, sim_cfg, use_nn_init=False)
             
         status = results['status']
         
@@ -111,10 +111,17 @@ if __name__ == "__main__":
     # The EgoConfig class will handle normalization internally
     
     scenarios = [
+        # {
+        #     'name': 'U-Turn',
+        #     'start': [0, 0, 0, 0, 0],
+        #     'goal': [-5, 0, np.pi, 0, 0],
+        #     'duration': 40.0
+        # },
         {
-            'name': 'U-Turn',
-            'start': [0, 0, 0, 0, 0],
-            'goal': [-5, 0, np.pi, 0, 0]
+            'name': 'd245',
+            'start': [10, 20, np.pi, 0, 0],
+            'goal': [0, 0, 0, 0, 0],
+            'duration': 80.0
         }
     ]
     
@@ -139,30 +146,31 @@ if __name__ == "__main__":
         ego.state_final = scenario['goal']
         
         # Calculate distance
-        start_pos = ego.state_start[:2]
-        end_pos = ego.state_final[:2]
-        distance = np.sqrt((end_pos[0] - start_pos[0])**2 + (end_pos[1] - start_pos[1])**2)
+        # start_pos = ego.state_start[:2]
+        # end_pos = ego.state_final[:2]
+        # distance = np.sqrt((end_pos[0] - start_pos[0])**2 + (end_pos[1] - start_pos[1])**2)
         
-        # Calculate duration based on distance
-        duration = distance / ego.velocity_max + 5.0
+        # # Calculate duration based on distance
+        # duration = distance / ego.velocity_max + 5.0
         
         # Create simulation config
         sim_cfg = SimConfig()
-        sim_cfg.duration = duration
+        sim_cfg.duration = scenario['duration']
         sim_cfg.dt = 0.1
         
         # Run with default initialization
-        print("Running with default initialization...")
-        start_time = time.time()
+        # print("Running with default initialization...")
+        # start_time = time.time()
         # default_results = generate_controls(ego, sim_cfg, use_nn_init=False)
-        default_results = find_path(ego, duration=duration, dt=0.1, verbose=True)
-        default_time = time.time() - start_time
+        # default_results = find_path(ego, duration=duration, dt=0.1, verbose=True)
+        default_results = generate_controls(ego, sim_cfg, use_nn_init=False)
+        # default_time = time.time() - start_time
         
         # print(f"Default initialization: Time = {default_time:.3f}s, Status = {default_results['status']}")
     
-    # Import plot_results only if needed
-    if default_results is not None:
-        from plots import plot_results
-        plot_results(default_results, ego, save_path='docs/path_finder_results.png')
-    else:
-        print("No feasible path found.") 
+        # Import plot_results only if needed
+        if default_results is not None:
+            from plots import plot_results
+            plot_results(default_results, ego, save_path='docs/path_finder_results.png', show_plot=True)
+        else:
+            print("No feasible path found.") 
