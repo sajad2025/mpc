@@ -71,14 +71,14 @@ def grid_path_planning(goal_x, goal_y, goal_theta, grid_size=20, grid_step=1, nu
                 ego.state_start = [x, y, theta, 0, 0]
                 
                 # Calculate initial duration based on distance and velocity
-                start_pos = [x, y]
-                end_pos = [goal_x, goal_y]
-                duration = calculate_path_duration(start_pos, end_pos, ego.velocity_max)
+                # start_pos = [x, y]
+                # end_pos = [goal_x, goal_y]
+                # duration = calculate_path_duration(start_pos, end_pos, ego.velocity_max)
                 
                 # First attempt with calculated duration
                 try:
                     # Use verbose=False to suppress compilation output
-                    results = find_path(ego, duration=duration, dt=0.1, verbose=False)
+                    results = find_path(ego, duration=80, dt=0.1, verbose=False)
                     
                     # If first attempt successful, store results
                     if results is not None:
@@ -91,19 +91,19 @@ def grid_path_planning(goal_x, goal_y, goal_theta, grid_size=20, grid_step=1, nu
                         continue  # Move to next combination
                     
                     # If first attempt failed, try again with tripled duration
-                    print(f"✗ First attempt failed, trying again with tripled duration...")
-                    tripled_duration = duration * 3
-                    results = find_path(ego, duration=tripled_duration, dt=0.1, verbose=False)
+                    # print(f"✗ First attempt failed, trying again with tripled duration...")
+                    # tripled_duration = duration * 3
+                    # results = find_path(ego, duration=tripled_duration, dt=0.1, verbose=False)
                     
-                    if results is not None:
-                        print(f"✓ Path planning successful with tripled duration")
-                        successful_results.append({
-                            'start': (x, y, theta),
-                            'results': results,
-                            'ego': ego
-                        })
-                    else:
-                        print(f"✗ Path planning failed for second time")
+                    # if results is not None:
+                    #     print(f"✓ Path planning successful with tripled duration")
+                    #     successful_results.append({
+                    #         'start': (x, y, theta),
+                    #         'results': results,
+                    #         'ego': ego
+                    #     })
+                    # else:
+                    #     print(f"✗ Path planning failed for second time")
                     
                 except Exception as e:
                     print(f"✗ Error during path planning: {str(e)}")
@@ -122,9 +122,9 @@ if __name__ == "__main__":
         goal_x=goal_x,
         goal_y=goal_y,
         goal_theta=goal_theta,
-        grid_size=20,  # 20x20 meter grid
-        grid_step=10,   # 2 meter steps (reduced from 1m for faster execution)
-        num_angles=2   # 8 different heading angles
+        grid_size=40,  # 40x40 meter grid
+        grid_step=20,  # 20 meter steps
+        num_angles=4   # 4 different heading angles
     )
     
     # Plot all successful paths

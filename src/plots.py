@@ -2,6 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 def plot_results(results, ego, save_path=None):
     """
@@ -106,24 +107,72 @@ def plot_all_paths(successful_results, goal_x, goal_y, save_path=None):
     # Plot goal position
     ax.plot(goal_x, goal_y, 'ro', markersize=10, label='Goal')
     
-    # Plot each path with a different color
-    cmap = plt.cm.viridis
-    colors = [cmap(i) for i in np.linspace(0, 1, len(successful_results))]
+    # Create colormap for velocity
+    cmap = plt.cm.coolwarm  # Red for forward, blue for backward
     
+    # Find min and max velocities across all paths for normalization
+    all_velocities = []
+    for result in successful_results:
+        path = result['results']['x']
+        velocities = path[:, 3]  # Velocity is the 4th state variable (index 3)
+        all_velocities.extend(velocities)
+    
+    # Set velocity range for colormap
+    vel_min = min(all_velocities)
+    vel_max = max(all_velocities)
+    vel_abs_max = max(abs(vel_min), abs(vel_max))
+    norm = plt.Normalize(-vel_abs_max, vel_abs_max)  # Symmetric around zero
+    
+    # Create a custom colormap with black at zero and smooth transitions
+    # Define the colors for our custom colormap with the requested scheme
+    colors = [
+        (0, 0.4, 1),      # Bright blue (most negative velocities)
+        (0, 0, 0.4),      # Dark blue (slightly negative velocities)
+        (0, 0, 0),        # Black (zero velocity)
+        (0.4, 0, 0),      # Dark red (slightly positive velocities)
+        (1, 0.4, 0)       # Bright red (most positive velocities)
+    ]
+    
+    # Define the positions for these colors on a scale from 0 to 1
+    # This ensures black is exactly at the center (0.5)
+    positions = [0, 0.4, 0.5, 0.6, 1]
+    
+    # Create the colormap
+    cdict = {'red': [], 'green': [], 'blue': []}
+    for pos, color in zip(positions, colors):
+        cdict['red'].append((pos, color[0], color[0]))
+        cdict['green'].append((pos, color[1], color[1]))
+        cdict['blue'].append((pos, color[2], color[2]))
+    
+    custom_cmap = mcolors.LinearSegmentedColormap('custom_velocity', cdict)
+    
+    # Plot each path
     for i, result in enumerate(successful_results):
         # Extract path data
         path = result['results']['x']
         start_x, start_y, start_theta = result['start']
         
-        # Plot path
-        ax.plot(path[:, 0], path[:, 1], '-', color=colors[i], linewidth=1, alpha=0.7)
+        # Extract velocities for this path
+        velocities = path[:, 3]
+        
+        # Plot path segments with colors based on velocity
+        for j in range(len(path) - 1):
+            # Get segment points
+            x_seg = path[j:j+2, 0]
+            y_seg = path[j:j+2, 1]
+            
+            # Get velocity for this segment (use average of endpoints)
+            vel = (velocities[j] + velocities[j+1]) / 2
+            
+            # Plot segment with color based on velocity
+            ax.plot(x_seg, y_seg, '-', color=custom_cmap(norm(vel)), linewidth=1.5, alpha=0.7)
         
         # Plot start position with an arrow to show heading
         arrow_length = 1.0
         dx = arrow_length * np.cos(start_theta)
         dy = arrow_length * np.sin(start_theta)
         ax.arrow(start_x, start_y, dx, dy, head_width=0.3, head_length=0.5, 
-                fc=colors[i], ec=colors[i], alpha=0.7)
+                fc='black', ec='black', alpha=0.7)
     
     # Add grid
     ax.grid(True)
@@ -136,11 +185,11 @@ def plot_all_paths(successful_results, goal_x, goal_y, save_path=None):
     ax.set_ylabel('Y (m)')
     ax.set_title(f'Path Planning from Multiple Initial Positions\n{len(successful_results)} successful paths')
     
-    # Add colorbar to show path index
-    norm = plt.Normalize(0, len(successful_results)-1)
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    # Add colorbar to show velocity
+    sm = plt.cm.ScalarMappable(cmap=custom_cmap, norm=norm)
     sm.set_array([])
-    plt.colorbar(sm, cax=cax, label='Path Index')
+    cbar = plt.colorbar(sm, cax=cax)
+    cbar.set_label('Velocity (m/s)')
     
     # Tight layout
     plt.tight_layout()
