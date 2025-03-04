@@ -13,15 +13,17 @@ def corridor_cal(point_a: tuple, point_b: tuple, distance: float) -> tuple:
         distance (float): perpendicular distance from the center line to corridor boundary
         
     Returns:
-        tuple: (a1, b1, a2, b2) where:
+        tuple: (c1, a1, b1, c2, a2, b2) where:
             The corridor is defined by two inequalities:
-            1. y + a1*x + b1 > 0  (points above this line are above the upper boundary)
-            2. y + a2*x + b2 < 0  (points below this line are below the lower boundary)
+            1. c1*y + a1*x + b1 > 0  (points above this line are above the upper boundary)
+            2. c2*y + a2*x + b2 < 0  (points below this line are below the lower boundary)
             Points satisfying BOTH inequalities are inside the corridor.
             
+            All coefficients are normalized so that sqrt(c^2 + a^2) = 1 for each boundary.
+            
             In other words:
-            y = -a1*x - b1  defines the upper boundary line
-            y = -a2*x - b2  defines the lower boundary line
+            c1*y = -a1*x - b1  defines the upper boundary line
+            c2*y = -a2*x - b2  defines the lower boundary line
     """
     # Extract coordinates
     x1, y1 = point_a
@@ -39,55 +41,53 @@ def corridor_cal(point_a: tuple, point_b: tuple, distance: float) -> tuple:
     dx, dy = dx/length, dy/length
     
     # Calculate normal vector (rotate direction vector by 90 degrees)
-    nx = -dy
-    ny = dx
+    # This is already normalized since (dx, dy) was normalized
+    nx = -dy  # Normal vector x component
+    ny = dx   # Normal vector y component
     
-    # For nearly vertical lines, use vertical line handling
-    if abs(dx) < 1e-10:
-        return 1.0, -point_a[0] + distance, 1.0, -point_a[0] - distance
+    # The normal vector (nx, ny) is already normalized and gives us our coefficients
+    # For the line equation: nx*x + ny*y + d = 0
+    c = ny    # coefficient of y
+    a = nx    # coefficient of x
     
-    # Calculate line slope and intercept
-    m = dy/dx
+    # Calculate the offset for both boundaries using the normal vector
+    # The base offset is -(nx*x1 + ny*y1) which gives us distance from origin
+    base_offset = -(nx*x1 + ny*y1)
     
-    # Calculate parallel lines offset by distance
-    d_offset = distance * np.sqrt(1 + m**2)
+    # For upper boundary (c*y + a*x + b1 > 0)
+    b1 = base_offset + distance
     
-    # For upper boundary (y + a1*x + b1 > 0)
-    a1 = -m
-    b1 = y1 - m*x1 + d_offset
+    # For lower boundary (c*y + a*x + b2 < 0)
+    b2 = base_offset - distance
     
-    # For lower boundary (y + a2*x + b2 < 0)
-    a2 = -m
-    b2 = y1 - m*x1 - d_offset
-    
-    return a1, b1, a2, b2
+    return c, a, b1, c, a, b2
 
-def verify_point_in_corridor(point: tuple, a1: float, b1: float, a2: float, b2: float) -> bool:
+def verify_point_in_corridor(point: tuple, c1: float, a1: float, b1: float, c2: float, a2: float, b2: float) -> bool:
     """
     Verify if a point lies within the corridor.
     
     Args:
         point (tuple): (x, y) coordinates of the point to check
-        a1, b1, a2, b2 (float): Corridor parameters
+        c1, a1, b1, c2, a2, b2 (float): Normalized corridor parameters
         
     Returns:
         bool: True if point is inside corridor, False otherwise
     """
     x, y = point
-    upper_bound = y + a1*x + b1
-    lower_bound = y + a2*x + b2
+    upper_bound = c1*y + a1*x + b1
+    lower_bound = c2*y + a2*x + b2
     
     return upper_bound > 0 and lower_bound < 0
 
-def plot_corridor(point_a: tuple, point_b: tuple, a1: float, b1: float, a2: float, b2: float, distance: float):
+def plot_corridor(point_a: tuple, point_b: tuple, c1: float, a1: float, b1: float, c2: float, a2: float, b2: float, distance: float):
     """
     Visualize the corridor with test points.
     
     Args:
         point_a (tuple): Start point of the line segment
         point_b (tuple): End point of the line segment
-        a1, b1 (float): Parameters for upper boundary
-        a2, b2 (float): Parameters for lower boundary
+        c1, a1, b1 (float): Parameters for upper boundary
+        c2, a2, b2 (float): Parameters for lower boundary
         distance (float): Corridor width
     """
     # Create figure and axis
@@ -103,17 +103,44 @@ def plot_corridor(point_a: tuple, point_b: tuple, a1: float, b1: float, a2: floa
     y_min = min(point_a[1], point_b[1]) - margin
     y_max = max(point_a[1], point_b[1]) + margin
     
-    # Generate points for corridor boundaries
-    x = np.linspace(x_min, x_max, 100)
+    # Use a parametric approach to draw boundary lines
+    # This works for all line orientations (vertical, horizontal, diagonal)
+    t = np.linspace(-1, 2, 300)  # Parametric range covering the segment and beyond
     
-    # Plot corridor boundaries
-    y_upper = -a1 * x - b1
-    y_lower = -a2 * x - b2
+    # Calculate direction vector of the line
+    dx = point_b[0] - point_a[0]
+    dy = point_b[1] - point_a[1]
     
-    # Clip the corridor to a reasonable region around the line segment
-    mask = (x >= x_min) & (x <= x_max) & (y_upper >= y_min) & (y_upper <= y_max)
-    ax.plot(x[mask], y_upper[mask], 'r--', label='Upper Boundary')
-    ax.plot(x[mask], y_lower[mask], 'b--', label='Lower Boundary')
+    # Normalize
+    length = np.sqrt(dx**2 + dy**2)
+    dx, dy = dx/length, dy/length
+    
+    # Normal vector (perpendicular to direction)
+    nx, ny = -dy, dx
+    
+    # Generate boundary lines using parametric equations
+    # Line segment: point_a + t * (point_b - point_a), t ∈ [0,1]
+    # Extended to t ∈ [-1,2] to show more of the corridor
+    
+    # Points along the original line (extended)
+    line_x = point_a[0] + t * dx * length
+    line_y = point_a[1] + t * dy * length
+    
+    # Upper boundary
+    upper_x = line_x + nx * distance
+    upper_y = line_y + ny * distance
+    
+    # Lower boundary
+    lower_x = line_x - nx * distance
+    lower_y = line_y - ny * distance
+    
+    # Clip points to the visible area
+    mask_upper = (upper_x >= x_min) & (upper_x <= x_max) & (upper_y >= y_min) & (upper_y <= y_max)
+    mask_lower = (lower_x >= x_min) & (lower_x <= x_max) & (lower_y >= y_min) & (lower_y <= y_max)
+    
+    # Plot the boundary lines
+    ax.plot(upper_x[mask_upper], upper_y[mask_upper], 'r--', label='Upper Boundary')
+    ax.plot(lower_x[mask_lower], lower_y[mask_lower], 'b--', label='Lower Boundary')
     
     # Generate and plot test points
     np.random.seed(42)  # For reproducibility
@@ -123,7 +150,7 @@ def plot_corridor(point_a: tuple, point_b: tuple, a1: float, b1: float, a2: floa
     
     for x_test, y_test in zip(x_range, y_range):
         point = (x_test, y_test)
-        is_inside = verify_point_in_corridor(point, a1, b1, a2, b2)
+        is_inside = verify_point_in_corridor(point, c1, a1, b1, c2, a2, b2)
         ax.scatter(x_test, y_test, 
                   color='green' if is_inside else 'red',
                   alpha=0.6,
@@ -154,22 +181,54 @@ def plot_corridor(point_a: tuple, point_b: tuple, a1: float, b1: float, a2: floa
     return fig, ax
 
 if __name__ == "__main__":
-    # Example usage
-    point_a = (0, 0)
-    point_b = (10, 10)
+    # Test Case 1: Diagonal line
+    point_a_diagonal = (0, 0)
+    point_b_diagonal = (10, 10)
     distance = 2.0
     
-    a1, b1, a2, b2 = corridor_cal(point_a, point_b, distance)
-    print(f"Corridor parameters:")
-    print(f"Upper boundary: y + {a1:.3f}x + {b1:.3f} > 0")
-    print(f"Lower boundary: y + {a2:.3f}x + {b2:.3f} < 0")
+    c1, a1, b1, c2, a2, b2 = corridor_cal(point_a_diagonal, point_b_diagonal, distance)
+    print(f"\nDiagonal corridor parameters:")
+    print(f"Upper boundary: {c1:.3f}y + {a1:.3f}x + {b1:.3f} > 0")
+    print(f"Lower boundary: {c2:.3f}y + {a2:.3f}x + {b2:.3f} < 0")
     
-    # Create visualization
-    fig, ax = plot_corridor(point_a, point_b, a1, b1, a2, b2, distance)
-    plt.show()
+    # Create visualization for diagonal case
+    fig1, ax1 = plot_corridor(point_a_diagonal, point_b_diagonal, c1, a1, b1, c2, a2, b2, distance)
+    ax1.set_title('Corridor Visualization - Diagonal Line')
+    # fig1.savefig('utils/corridor_diagonal.png', dpi=300, bbox_inches='tight')
     
-    # Test some specific points
-    test_points = [(5, 5), (5, 7), (5, 3)]
-    for point in test_points:
-        is_inside = verify_point_in_corridor(point, a1, b1, a2, b2)
-        print(f"Test point {point} is {'inside' if is_inside else 'outside'} the corridor") 
+    # Test Case 2: Horizontal line
+    point_a_horizontal = (0, 5)
+    point_b_horizontal = (10, 5)
+    
+    c1, a1, b1, c2, a2, b2 = corridor_cal(point_a_horizontal, point_b_horizontal, distance)
+    print(f"\nHorizontal corridor parameters:")
+    print(f"Upper boundary: {c1:.3f}y + {a1:.3f}x + {b1:.3f} > 0")
+    print(f"Lower boundary: {c2:.3f}y + {a2:.3f}x + {b2:.3f} < 0")
+    
+    # Create visualization for horizontal case
+    fig2, ax2 = plot_corridor(point_a_horizontal, point_b_horizontal, c1, a1, b1, c2, a2, b2, distance)
+    ax2.set_title('Corridor Visualization - Horizontal Line')
+    # fig2.savefig('utils/corridor_horizontal.png', dpi=300, bbox_inches='tight')
+    
+    # Test Case 3: Vertical line
+    point_a_vertical = (5, 0)
+    point_b_vertical = (5, 10)
+    
+    c1, a1, b1, c2, a2, b2 = corridor_cal(point_a_vertical, point_b_vertical, distance)
+    print(f"\nVertical corridor parameters:")
+    print(f"Upper boundary: {c1:.3f}y + {a1:.3f}x + {b1:.3f} > 0")
+    print(f"Lower boundary: {c2:.3f}y + {a2:.3f}x + {b2:.3f} < 0")
+    
+    # Create visualization for vertical case
+    fig3, ax3 = plot_corridor(point_a_vertical, point_b_vertical, c1, a1, b1, c2, a2, b2, distance)
+    ax3.set_title('Corridor Visualization - Vertical Line')
+    # fig3.savefig('utils/corridor_vertical.png', dpi=300, bbox_inches='tight')
+    
+    # Test some specific points for each case
+    test_points_diagonal = [(5, 5), (5, 7), (5, 3)]
+    print("\nTesting diagonal corridor:")
+    for point in test_points_diagonal:
+        is_inside = verify_point_in_corridor(point, c1, a1, b1, c2, a2, b2)
+        print(f"Test point {point} is {'inside' if is_inside else 'outside'} the corridor")
+    
+    plt.show() 

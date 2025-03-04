@@ -44,21 +44,42 @@ def plot_results(results, ego, save_path=None, show_xy_plot=False):
         # Calculate and plot corridor
         point_a = (ego.state_start[0], ego.state_start[1])
         point_b = (ego.state_final[0], ego.state_final[1])
-        a1, b1, a2, b2 = corridor_cal(point_a, point_b, ego.corridor_width)
+        c1, a1, b1, c2, a2, b2 = corridor_cal(point_a, point_b, ego.corridor_width)
         
         # Calculate plot bounds with margin
         margin = ego.corridor_width * 2
         x_min = min(point_a[0], point_b[0]) - margin
         x_max = max(point_a[0], point_b[0]) + margin
         
-        # Generate points for corridor boundaries
-        x_corridor = np.linspace(x_min, x_max, 100)
-        y_upper = -a1 * x_corridor - b1
-        y_lower = -a2 * x_corridor - b2
+        # Use parametric approach to draw boundary lines
+        t = np.linspace(-1, 2, 100)  # Parametric range covering the segment and beyond
+        
+        # Calculate direction vector of the line
+        dx = point_b[0] - point_a[0]
+        dy = point_b[1] - point_a[1]
+        
+        # Normalize
+        length = np.sqrt(dx**2 + dy**2)
+        dx, dy = dx/length, dy/length
+        
+        # Normal vector (perpendicular to direction)
+        nx, ny = -dy, dx
+        
+        # Points along the original line (extended)
+        line_x = point_a[0] + t * dx * length
+        line_y = point_a[1] + t * dy * length
+        
+        # Upper boundary
+        upper_x = line_x + nx * ego.corridor_width
+        upper_y = line_y + ny * ego.corridor_width
+        
+        # Lower boundary
+        lower_x = line_x - nx * ego.corridor_width
+        lower_y = line_y - ny * ego.corridor_width
         
         # Plot corridor boundaries
-        ax.plot(x_corridor, y_upper, 'r--', alpha=0.3, label='corridor')
-        ax.plot(x_corridor, y_lower, 'r--', alpha=0.3)
+        ax.plot(upper_x, upper_y, 'r--', alpha=0.3, label='corridor')
+        ax.plot(lower_x, lower_y, 'r--', alpha=0.3)
         
         ax.grid(True)
         ax.legend(bbox_to_anchor=(1.15, 1), loc='upper left')

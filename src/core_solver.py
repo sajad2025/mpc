@@ -301,24 +301,24 @@ def generate_controls(ego, sim_cfg):
     # Calculate corridor constraints
     point_a = (ego.state_start[0], ego.state_start[1])  # (x, y) of start
     point_b = (ego.state_final[0], ego.state_final[1])  # (x, y) of end
-    a1, b1, a2, b2 = corridor_cal(point_a, point_b, ego.corridor_width)
+    c1, a1, b1, c2, a2, b2 = corridor_cal(point_a, point_b, ego.corridor_width)
     
     # Add corridor constraints as linear constraints
     # Original constraints are: 
-    # y + a1*x + b1 > 0  ->  -y - a1*x <= b1
-    # y + a2*x + b2 < 0  ->   y + a2*x <= -b2
+    # c1*y + a1*x + b1 > 0  ->  -c1*y - a1*x <= b1
+    # c2*y + a2*x + b2 < 0  ->   c2*y + a2*x <= -b2
     
     # Set up linear constraints: C*x + D*u <= ug
     ocp.dims.ng = 2  # Two linear constraints
     
     # Define constraint matrices
     C = np.zeros((2, nx))
-    # First row: -y - a1*x <= b1
+    # First row: -c1*y - a1*x <= b1
     C[0, 0] = float(-a1)  # x coefficient
-    C[0, 1] = -1.0        # y coefficient
-    # Second row: y + a2*x <= -b2
+    C[0, 1] = float(-c1)  # y coefficient
+    # Second row: c2*y + a2*x <= -b2
     C[1, 0] = float(a2)   # x coefficient
-    C[1, 1] = 1.0         # y coefficient
+    C[1, 1] = float(c2)   # y coefficient
     
     # No control input in constraints
     D = np.zeros((2, nu))
