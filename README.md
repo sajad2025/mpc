@@ -1,4 +1,4 @@
-# Model Predictive Control (MPC) Project
+# Model Predictive Control (MPC), Kinematic Car
 
 ## Results
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-This repository contains examples and implementations of Model Predictive Control using Acados and CasADi, with a focus on path planning for autonomous vehicles.
+This repository contains implementations of Model Predictive Control using Acados and CasADi, for kinematic car model.
 
 ## Project Structure
 

@@ -14,29 +14,12 @@
             padding: 20px;
             background-color: #f5f5f5;
         }
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #2c3e50;
-            margin-bottom: 10px;
-        }
-        .description {
-            max-width: 800px;
-            margin: 0 auto 30px;
-            text-align: center;
-            color: #555;
-        }
         .content-container {
             display: flex;
             flex-wrap: wrap;
             gap: 20px;
             justify-content: center;
+            margin-top: 20px;
         }
         .video-panel, .image-panel {
             flex: 1;
@@ -80,25 +63,11 @@
             font-size: 14px;
             color: #7f8c8d;
         }
-        .panel-title {
-            text-align: center;
-            color: #2c3e50;
-            margin-bottom: 15px;
-        }
     </style>
 </head>
 <body>
-    <header>
-        <h1>Vehicle Path Planning</h1>
-        <p class="description">
-            This project demonstrates a vehicle navigating through a road network from point A to point F
-            using Model Predictive Control (MPC) for path planning.
-        </p>
-    </header>
-
     <div class="content-container">
         <div class="video-panel">
-            <h2 class="panel-title">Path Animation</h2>
             <div class="video-container">
                 <video id="animation" controls>
                     <source src="path_animation.mp4" type="video/mp4">
@@ -113,7 +82,6 @@
         </div>
 
         <div class="image-panel">
-            <h2 class="panel-title">Path Planning Results</h2>
             <div class="image-container">
                 <img src="grid_path_planning_results.png" alt="Grid Path Planning Results">
             </div>
