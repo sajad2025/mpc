@@ -3,8 +3,9 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle, Arrow
+from matplotlib.patches import Rectangle, Arrow, Polygon, Circle
 import matplotlib.animation as animation
+from matplotlib.transforms import Affine2D
 
 def load_sequential_results():
     """Load the sequential path planning results."""
@@ -12,11 +13,11 @@ def load_sequential_results():
     results_file = os.path.join(docs_dir, "sequential_path_results.npy")
     return np.load(results_file, allow_pickle=True).item()
 
-def create_vehicle_patches(x, y, theta, color='blue', alpha=0.7):
-    """Create patches representing the vehicle."""
-    # Vehicle dimensions
-    length = 2.7  # meters
-    width = 1.8   # meters
+def create_vehicle_patches(x, y, theta, color='blue', alpha=0.8):
+    """Create patches representing a more realistic vehicle."""
+    # More realistic vehicle dimensions
+    length = 4.5  # meters (typical car length)
+    width = 2.0   # meters (typical car width)
     
     # Calculate vehicle corners
     cos_theta = np.cos(theta)
@@ -26,27 +27,43 @@ def create_vehicle_patches(x, y, theta, color='blue', alpha=0.7):
     corner_x = x - (length/2 * cos_theta - width/2 * sin_theta)
     corner_y = y - (length/2 * sin_theta + width/2 * cos_theta)
     
-    # Create vehicle rectangle
-    vehicle = Rectangle(
+    # Create vehicle body (main rectangle)
+    vehicle_body = Rectangle(
         (corner_x, corner_y),
         length, width,
         angle=np.degrees(theta),
         facecolor=color,
         alpha=alpha,
-        edgecolor='black'
+        edgecolor='black',
+        linewidth=1.5
     )
     
-    # Create direction arrow at the center
-    arrow_length = length * 0.8
-    arrow = Arrow(
-        x, y,
-        arrow_length * cos_theta,
-        arrow_length * sin_theta,
-        width=width * 0.5,
-        color='white'
-    )
+    # Create headlights (two small circles at the front)
+    headlight_radius = 0.3
+    headlight_positions = [
+        (length/2 - headlight_radius, width/3),  # front left
+        (length/2 - headlight_radius, -width/3)  # front right
+    ]
     
-    return vehicle, arrow
+    headlights = []
+    for hx, hy in headlight_positions:
+        # Apply rotation and translation
+        hx_rot = hx * cos_theta - hy * sin_theta + x
+        hy_rot = hx * sin_theta + hy * cos_theta + y
+        
+        headlight = Circle(
+            (hx_rot, hy_rot),
+            headlight_radius,
+            facecolor='yellow',
+            alpha=alpha,
+            edgecolor='black'
+        )
+        headlights.append(headlight)
+    
+    # Combine all vehicle parts
+    vehicle_parts = [vehicle_body] + headlights
+    
+    return vehicle_parts
 
 def create_animation():
     """Create animation of the vehicle following the path."""
@@ -57,17 +74,59 @@ def create_animation():
     # Create figure and axis
     fig, ax = plt.subplots(figsize=(12, 10))
     
+    # Add road lines based on the diagram
+    # Blue lines (main roads)
+    blue_road_segments = [
+        # Top row
+        [(-40, 40), (-30, 40)],
+        [(-30, 40), (-30, 50)],
+        [(0, 40), (0, 50)],
+        [(0, 40), (50, 40)],
+        
+        # Middle row
+        [(0, 25), (50, 25)],
+        
+        # Bottom row
+        [(-40, 10), (-30, 10)],
+        [(-30, 10), (-30, -30)],
+        [(0, 10), (0, -30)],
+        [(0, 10), (30, 10)],
+        [(30, 10), (30, -30)],
+        [(45, 10), (45, -30)],
+        [(45, 10), (50, 10)]
+    ]
+    
+    # Orange lines (secondary roads)
+    orange_road_segments = [
+        # Top row
+        [(-15, 40), (-15, 50)],
+        
+        # Middle row
+        [(-40, 25), (-30, 25)],
+        
+        # Bottom row
+        [(-15, 10), (-15, -30)]
+    ]
+    
+    # Plot blue road segments
+    for start, end in blue_road_segments:
+        ax.plot([start[0], end[0]], [start[1], end[1]], 'b-', linewidth=2.5)
+    
+    # Plot orange road segments
+    for start, end in orange_road_segments:
+        ax.plot([start[0], end[0]], [start[1], end[1]], color='orange', linewidth=2.5)
+    
     # Plot the complete path
     ax.plot(trajectory[:, 0], trajectory[:, 1], 'b--', alpha=0.3, label='Path')
     
     # Plot waypoints
     waypoints = {
-        'A': (15, 35),
+        'A': (30, 35),
         'B': (0, 30),
         'C': (0, 20),
-        'D': (15, 15),
-        'E': (20, 10),
-        'F': (20, 0)
+        'D': (30, 15),
+        'E': (37, 8),
+        'F': (37, -22)
     }
     
     for label, (x, y) in waypoints.items():
@@ -80,20 +139,18 @@ def create_animation():
         ax.text(x + 1, y + 1, label, fontsize=12)
     
     # Set plot properties
-    ax.grid(True, alpha=0.3)
     ax.set_aspect('equal')
     ax.set_xlabel('X position (m)')
     ax.set_ylabel('Y position (m)')
     ax.set_title('Vehicle Path Animation: A to F')
     ax.legend()
     
-    # Set plot limits with extended left side view
-    ax.set_xlim(-10, 25)  # Extended left limit from -5 to -10
-    ax.set_ylim(-5, 40)  # Keeping y limits the same
+    # Set plot limits to show the complete path with some padding
+    ax.set_xlim(-45, 55)  # Extend to show full road network
+    ax.set_ylim(-35, 55)  # Extend to show full road network
     
     # Initialize vehicle patches
-    vehicle_patch = None
-    arrow_patch = None
+    vehicle_parts = []
     
     def init():
         """Initialize animation."""
@@ -101,31 +158,30 @@ def create_animation():
     
     def animate(frame):
         """Update animation frame."""
-        nonlocal vehicle_patch, arrow_patch
+        nonlocal vehicle_parts
         
         # Remove previous vehicle patches
-        if vehicle_patch is not None:
-            vehicle_patch.remove()
-        if arrow_patch is not None:
-            arrow_patch.remove()
+        for part in vehicle_parts:
+            part.remove()
+        vehicle_parts = []
         
         # Create new vehicle patches
         x, y, theta = trajectory[frame, 0:3]
-        vehicle_patch, arrow_patch = create_vehicle_patches(x, y, theta)
+        vehicle_parts = create_vehicle_patches(x, y, theta, color='royalblue')
         
         # Add patches to plot
-        ax.add_patch(vehicle_patch)
-        ax.add_patch(arrow_patch)
+        for part in vehicle_parts:
+            ax.add_patch(part)
         
         # Add progress text
         progress = frame / len(trajectory) * 100
         ax.set_title(f'Vehicle Path Animation: A to F (Progress: {progress:.1f}%)')
         
-        return [vehicle_patch, arrow_patch]
+        return vehicle_parts
     
     # Create animation
     frames = len(trajectory)
-    interval = 50  # milliseconds between frames
+    interval = 16  # milliseconds between frames (3x faster than original 50ms)
     anim = animation.FuncAnimation(
         fig, animate, init_func=init,
         frames=frames, interval=interval, blit=True
@@ -136,7 +192,7 @@ def create_animation():
     output_file = os.path.join(docs_dir, 'path_animation.mp4')
     
     # Save animation with high quality
-    anim.save(output_file, writer='ffmpeg', fps=20,
+    anim.save(output_file, writer='ffmpeg', fps=60,  # Increased fps from 20 to 60 for smoother animation
               dpi=200, bitrate=2000,
               metadata={'title': 'Vehicle Path Animation'})
     

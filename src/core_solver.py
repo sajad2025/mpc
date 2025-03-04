@@ -31,10 +31,10 @@ class EgoConfig:
         
         # Cost function weights
         # Path cost weights
-        self.weight_acceleration = 1.0
+        self.weight_acceleration = 100.0
         self.weight_steering_rate = 100.0
         self.weight_steering_angle = 1.0
-        self.weight_velocity = 1.0  # Weight for velocity cost
+        self.weight_velocity = 0.0
         
         # Terminal cost weights for all states
         self.weight_terminal_position_x = 100.0

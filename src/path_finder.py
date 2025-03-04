@@ -113,15 +113,18 @@ if __name__ == "__main__":
     ego = EgoConfig()
     # Now we can directly set angles without explicit normalization
     # The EgoConfig class will handle normalization internally
-    ego.state_start = [0, 0,   1*np.pi/2, 0, 0]  # 2π will be normalized to 0
-    ego.state_final = [20, 0, -1*np.pi/2, 0.5, 0]
-    ego.corridor_width = 10.0
+    ego.state_start = [0, 0,   1*np.pi/2, 1.0, 0]  # 2π will be normalized to 0
+    ego.state_final = [20, 0, -1*np.pi/2, 1.0, 0]
+    ego.corridor_width = 7.0
     ego.velocity_min = 0.0
+
+    # ego.weight_velocity = 0.0 
+    # ego.weight_acceleration = 100
     
     # Clean up any existing Acados files
     clean_acados_files()
     
-    results = find_path(ego, duration=80, dt=0.1, verbose=True)
+    results = find_path(ego, duration=40, dt=0.1, verbose=True)
     print("Path planning completed.")
     
     # Import plot_results only if needed

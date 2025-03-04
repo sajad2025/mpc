@@ -206,44 +206,52 @@ scenarios = [
     # {
     #     'name': 'U-Turn',
     #     'corridor_width': 7.0,
-    #     'duration': 35.0,
+    #     'duration': 40.0,
     #     'velocity_min': 0.0,
-    #     'start_state': [0, 0, np.pi/2, 0, 0],  # x, y, theta (east), velocity, steering
-    #     'goal_state': [10, 0, -np.pi/2, 0, 0],  # x, y, theta (west), velocity, steering
+    #     'start_state': [0, 0, np.pi/2, 1.0, 0],  # x, y, theta (east), velocity, steering
+    #     'goal_state': [10, 0, -np.pi/2, 1.0, 0],  # x, y, theta (west), velocity, steering
     # },
-    {
-        'name': 'Corner Turn',
-        'corridor_width': 7.0,
-        'duration': 20.0,
-        'velocity_min': 0.0,
-        'start_state': [0, 0, np.pi/2, 0, 0],  # x, y, theta (east), velocity, steering
-        'goal_state': [5, 5, 0, 0, 0],  # x, y, theta (north), velocity, steering
-    },
+    # {
+    #     'name': 'Corner Turn',
+    #     'corridor_width': 3.0,
+    #     'duration': 20.0,
+    #     'velocity_min': 0.0,
+    #     'start_state': [0, 0, np.pi/2, 1.0, 0],  # x, y, theta (east), velocity, steering
+    #     'goal_state': [7, 7, 0, 1.0, 0],  # x, y, theta (north), velocity, steering
+    # },
     # {
     #     'name': 'line_change',
     #     'corridor_width': 7.0,
-    #     'duration': 40.0,
+    #     'duration': 22.0,
     #     'velocity_min': 0.0,
-    #     'start_state': [0, 0, 0, 1, 0],  # x, y, theta (east), velocity, steering
-    #     'goal_state': [20, -5, 0, 1, 0],  # x, y, theta (west), velocity, steering
+    #     'start_state': [0, 0, 0,  2.0, 0],  # x, y, theta (east), velocity, steering
+    #     'goal_state': [30, -5, 0, 1.0, 0],  # x, y, theta (west), velocity, steering
     # },
+    {
+        'name': 'line',
+        'corridor_width': 3.0,
+        'duration': 15.0,
+        'velocity_min': 0.0,
+        'start_state': [0, 0, 0,  1.0, 0],  # x, y, theta (east), velocity, steering
+        'goal_state': [30, 0, 0,  2.0, 0],  # x, y, theta (west), velocity, steering
+    },
 ]
 
 # Define waypoints for sequential planning (A through F based on the diagram)
 sequential_segments = [
     {
         'name': 'A_to_B',
-        'corridor_width': 3.0,
-        'duration': 25.0,
+        'corridor_width': 7.0,
+        'duration': 22.0,
         'velocity_min': 0.0,
-        'start_state': [15, 35, np.pi, 1, 0],  # x, y, theta (west), velocity, steering
-        'goal_state': [0, 30, np.pi, 1, 0],    # x, y, theta (west), velocity, steering
+        'start_state': [30, 35, np.pi, 2.0, 0],  # x, y, theta (west), velocity, steering
+        'goal_state': [0, 30, np.pi, 1.0, 0],    # x, y, theta (west), velocity, steering
         'description': 'From A to B: Moving west along the top'
     },
     {
         'name': 'B_to_C',
         'corridor_width': 7.0,
-        'duration': 35.0,
+        'duration': 40.0,
         'velocity_min': 0.0,
         'start_state': [0, 30, np.pi, 1, 0],   # x, y, theta (west), velocity, steering
         'goal_state': [0, 20, 0, 1, 0],        # x, y, theta (east), velocity, steering
@@ -252,10 +260,10 @@ sequential_segments = [
     {
         'name': 'C_to_D',
         'corridor_width': 7.0,
-        'duration': 35.0,
+        'duration': 22.0,
         'velocity_min': 0.0,
-        'start_state': [0, 20, 0, 1, 0],       # x, y, theta (east), velocity, steering
-        'goal_state': [15, 15, 0, 0, 0],       # x, y, theta (east), velocity, steering
+        'start_state': [0, 20, 0, 1.0, 0],       # x, y, theta (east), velocity, steering
+        'goal_state': [30, 15, 0, 1.0, 0],       # x, y, theta (east), velocity, steering
         'description': 'From C to D: Moving east and slightly down'
     },
     {
@@ -263,8 +271,8 @@ sequential_segments = [
         'corridor_width': 3.0,
         'duration': 20.0,
         'velocity_min': 0.0,
-        'start_state': [15, 15, 0, 0, 0],      # x, y, theta (east), velocity, steering
-        'goal_state': [20, 10, -np.pi/2, 0, 0], # x, y, theta (south), velocity, steering
+        'start_state': [30, 15, 0, 1.0, 0],      # x, y, theta (east), velocity, steering
+        'goal_state': [37, 8, -np.pi/2, 1.0, 0], # x, y, theta (south), velocity, steering
         'description': 'From D to E: Moving east-south-east and turning south'
     },
     {
@@ -272,8 +280,8 @@ sequential_segments = [
         'corridor_width': 3.0,
         'duration': 15.0,
         'velocity_min': 0.0,
-        'start_state': [20, 10, -np.pi/2, 0, 0], # x, y, theta (south), velocity, steering
-        'goal_state': [20, 0, -np.pi/2, 0, 0],   # x, y, theta (south), velocity, steering
+        'start_state': [37, 8, -np.pi/2, 1.0, 0], # x, y, theta (south), velocity, steering
+        'goal_state': [37, -22, -np.pi/2, 3.0, 0],   # x, y, theta (south), velocity, steering
         'description': 'From E to F: Moving straight south'
     }
 ]
