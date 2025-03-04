@@ -5,6 +5,7 @@ import numpy as np
 import scipy.linalg
 from casadi import *
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosModel
+from utils.corridor import corridor_cal
 
 class EgoConfig:
     def __init__(self):
@@ -20,6 +21,9 @@ class EgoConfig:
         self.steering_min = -0.5
         self.steering_rate_max = 0.4
         self.steering_rate_min = -0.4
+        
+        # Corridor parameters
+        self.corridor_width = 15.0  # Width of the corridor in meters
         
         # Start and goal states [x, y, theta, velocity, steering]
         self._state_start = [0, 0, 0, 0, 0]
@@ -294,6 +298,44 @@ def generate_controls(ego, sim_cfg):
     ocp.constraints.ubu = np.array([ego.acceleration_max, ego.steering_rate_max])
     ocp.constraints.idxbu = np.array(range(nu))
     
+    # Calculate corridor constraints
+    point_a = (ego.state_start[0], ego.state_start[1])  # (x, y) of start
+    point_b = (ego.state_final[0], ego.state_final[1])  # (x, y) of end
+    a1, b1, a2, b2 = corridor_cal(point_a, point_b, ego.corridor_width)
+    
+    # Add corridor constraints as linear constraints
+    # Original constraints are: 
+    # y + a1*x + b1 > 0  ->  -y - a1*x <= b1
+    # y + a2*x + b2 < 0  ->   y + a2*x <= -b2
+    
+    # Set up linear constraints: C*x + D*u <= ug
+    ocp.dims.ng = 2  # Two linear constraints
+    
+    # Define constraint matrices
+    C = np.zeros((2, nx))
+    # First row: -y - a1*x <= b1
+    C[0, 0] = float(-a1)  # x coefficient
+    C[0, 1] = -1.0        # y coefficient
+    # Second row: y + a2*x <= -b2
+    C[1, 0] = float(a2)   # x coefficient
+    C[1, 1] = 1.0         # y coefficient
+    
+    # No control input in constraints
+    D = np.zeros((2, nu))
+    
+    # Set the constraint matrices
+    ocp.constraints.C = C
+    ocp.constraints.D = D
+    
+    # Set bounds for the linear constraints
+    ocp.constraints.lg = np.array([-1e9, -1e9], dtype=float)  # Lower bounds
+    ocp.constraints.ug = np.array([float(b1), float(-b2)])    # Upper bounds
+    
+    # Apply same constraints to terminal state
+    ocp.constraints.C_e = C.copy()
+    ocp.constraints.lg_e = np.array([-1e9, -1e9], dtype=float)
+    ocp.constraints.ug_e = np.array([float(b1), float(-b2)])
+    
     # State constraints - relaxed bounds for better convergence
     x_max = 100.0
     y_max = 100.0
@@ -328,16 +370,28 @@ def generate_controls(ego, sim_cfg):
     simX = np.ndarray((N+1, nx))
     simU = np.ndarray((N, nu))
     
-    # Initialize with a simple straight line trajectory
-    for i in range(N):
+    # Initialize with a trajectory that respects the corridor
+    # Calculate center line of the corridor
+    for i in range(N+1):
         t = float(i) / N
+        # Linear interpolation for x and y
         x_init = ego.state_start[0] + t * (ego.state_final[0] - ego.state_start[0])
         y_init = ego.state_start[1] + t * (ego.state_final[1] - ego.state_start[1])
-        theta_init = ego.state_start[2] + t * (ego.state_final[2] - ego.state_start[2])
         
-        v_init = 1.0
+        # Ensure initial guess satisfies corridor constraints
+        y_center = -(a1*x_init + b1/2 + a2*x_init + b2/2)/2
+        y_init = min(max(y_init, y_center - ego.corridor_width/2), y_center + ego.corridor_width/2)
+        
+        # Linear interpolation for other states
+        theta_init = ego.state_start[2] + t * (ego.state_final[2] - ego.state_start[2])
+        v_init = 1.0 * (1 - t)  # Start with velocity and slow down
         steering_init = 0.0
-        acados_solver.set(i, "x", np.array([x_init, y_init, theta_init, v_init, steering_init]))
+        
+        if i < N:
+            acados_solver.set(i, "x", np.array([x_init, y_init, theta_init, v_init, steering_init]))
+    
+    # Set the final state
+    acados_solver.set(N, "x", np.array(ego.state_final))
     
     # Solve OCP
     status = acados_solver.solve()

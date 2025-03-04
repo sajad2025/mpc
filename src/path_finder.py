@@ -2,6 +2,11 @@
 
 import os
 import sys
+
+# Add project root to Python path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+
 import subprocess
 import numpy as np
 import matplotlib.pyplot as plt
@@ -108,8 +113,9 @@ if __name__ == "__main__":
     ego = EgoConfig()
     # Now we can directly set angles without explicit normalization
     # The EgoConfig class will handle normalization internally
-    ego.state_start = [10, -20, np.pi, 0, 0]  # 2π will be normalized to 0
-    ego.state_final = [0, 0, 0, 0, 0]
+    ego.state_start = [0, 0, 0, 0, 0]  # 2π will be normalized to 0
+    ego.state_final = [30, 30, np.pi/2, 0, 0]
+    ego.corridor_width = 2.0
     
     # Clean up any existing Acados files
     clean_acados_files()
@@ -120,6 +126,6 @@ if __name__ == "__main__":
     # Import plot_results only if needed
     if results is not None:
         from plots import plot_results
-        plot_results(results, ego, save_path='docs/path_finder_results.png')
+        plot_results(results, ego, save_path='docs/path_finder_results.png', show_xy_plot=True)
     else:
         print("No feasible path found.") 

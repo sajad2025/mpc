@@ -3,15 +3,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+from utils.corridor import corridor_cal
+import os
 
-def plot_results(results, ego, save_path=None):
+def plot_results(results, ego, save_path=None, show_xy_plot=False):
     """
     Plot the path planning results.
     
     Args:
         results: Dictionary containing t, x, and u from generate_controls
         ego: Object containing vehicle parameters
-        save_path: Optional path to save the plot
+        save_path: Optional path to save the plot. If provided:
+            - Main plot will be saved as {save_path}
+            - XY plot (if show_xy_plot=True) will be saved as {save_path_without_ext}_xy{ext}
     """
     t = results['t']
     x = results['x']
@@ -20,23 +24,59 @@ def plot_results(results, ego, save_path=None):
     # Create subplots (3x2 grid now)
     fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2, figsize=(10.5, 7.35))
     
-    # Left column: States
-    # Plot trajectory
-    ax1.plot(x[:, 0], x[:, 1], 'b-', label='path (m)')
-    ax1.plot(ego.state_start[0], ego.state_start[1], 'go', label='start')
-    ax1.plot(ego.state_final[0], ego.state_final[1], 'ro', label='goal')
+    def plot_xy_trajectory(ax, title=None, show_arrows=False):
+        """Helper function to plot xy trajectory on any axes"""
+        # Plot trajectory
+        ax.plot(x[:, 0], x[:, 1], 'b-', label='path (m)')
+        ax.plot(ego.state_start[0], ego.state_start[1], 'go', label='start')
+        ax.plot(ego.state_final[0], ego.state_final[1], 'ro', label='goal')
+        
+        # Add direction arrows along the path (only if requested)
+        if show_arrows:
+            sample_interval = 10
+            sampled_points = x[::sample_interval]
+            directions_x = np.cos(sampled_points[:, 2])
+            directions_y = np.sin(sampled_points[:, 2])
+            ax.quiver(sampled_points[:, 0], sampled_points[:, 1], 
+                     directions_x, directions_y,
+                     color='blue', alpha=0.6, scale=5, scale_units='inches')
+        
+        # Calculate and plot corridor
+        point_a = (ego.state_start[0], ego.state_start[1])
+        point_b = (ego.state_final[0], ego.state_final[1])
+        a1, b1, a2, b2 = corridor_cal(point_a, point_b, ego.corridor_width)
+        
+        # Calculate plot bounds with margin
+        margin = ego.corridor_width * 2
+        x_min = min(point_a[0], point_b[0]) - margin
+        x_max = max(point_a[0], point_b[0]) + margin
+        
+        # Generate points for corridor boundaries
+        x_corridor = np.linspace(x_min, x_max, 100)
+        y_upper = -a1 * x_corridor - b1
+        y_lower = -a2 * x_corridor - b2
+        
+        # Plot corridor boundaries
+        ax.plot(x_corridor, y_upper, 'r--', alpha=0.3, label='corridor')
+        ax.plot(x_corridor, y_lower, 'r--', alpha=0.3)
+        
+        ax.grid(True)
+        ax.legend(bbox_to_anchor=(1.15, 1), loc='upper left')
+        ax.set_aspect('equal')
+        
+        if title:
+            ax.set_title(title)
     
-    # Add circles for car position at each sample
-    for i in range(0, len(t), 5):  # Plot every 5th circle to avoid overcrowding
-        circle = plt.Circle((x[i, 0], x[i, 1]), ego.L, fill=False, linestyle='--', 
-                          color='blue', alpha=0.2, linewidth=0.5)
-        ax1.add_patch(circle)
+    # Plot xy trajectory in main figure (without arrows)
+    plot_xy_trajectory(ax1, show_arrows=False)
     
-    ax1.grid(True)
-    # Keep the xy plot legend at the upper right
-    ax1.legend(bbox_to_anchor=(1.15, 1), loc='upper left')
-    # Make sure the aspect ratio is equal so circles look circular
-    ax1.set_aspect('equal')
+    # Create separate window for xy plot if requested (with arrows)
+    xy_fig = None
+    if show_xy_plot:
+        xy_fig = plt.figure(figsize=(12, 10))
+        xy_ax = xy_fig.add_subplot(111)
+        plot_xy_trajectory(xy_ax, title='Vehicle Trajectory', show_arrows=True)
+        xy_fig.tight_layout()
     
     # Plot velocity
     ax3.plot(t, x[:, 3], 'b-', label='velocity (m/s)')
@@ -82,8 +122,17 @@ def plot_results(results, ego, save_path=None):
     
     plt.tight_layout()
     
+    # Save plots if path is provided
     if save_path:
-        plt.savefig(save_path)
+        # Save main plot
+        fig.savefig(save_path)
+        
+        # Save xy plot if it exists
+        if xy_fig and show_xy_plot:
+            # Split the save_path into name and extension
+            save_path_base, ext = os.path.splitext(save_path)
+            xy_save_path = f"{save_path_base}_xy{ext}"
+            xy_fig.savefig(xy_save_path)
     
     # Show the plot and keep it open
     plt.show(block=True)
