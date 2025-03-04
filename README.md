@@ -1,5 +1,11 @@
 # Model Predictive Control (MPC) Project
 
+## Results
+
+**Watch the results:** [https://sajad2025.github.io/mpc/](https://sajad2025.github.io/mpc/)
+
+## Overview
+
 This repository contains examples and implementations of Model Predictive Control using Acados and CasADi, with a focus on path planning for autonomous vehicles.
 
 ## Project Structure
@@ -13,7 +19,14 @@ This repository contains examples and implementations of Model Predictive Contro
 │   ├── core_solver.py           # Core solver functionality and vehicle configuration
 │   ├── path_finder.py           # Path finding utilities
 │   ├── grid_path_plan.py        # Grid-based path planning
-│   └── plots.py                 # Visualization functions
+│   ├── plots.py                 # Visualization functions
+│   ├── scenarios.py             # Path planning scenarios
+│   ├── create_animation.py      # Animation generator for path visualization
+│   └── sequential_planning.py   # Sequential path planning implementation
+├── docs/
+│   ├── index.html               # GitHub Pages website
+│   ├── path_animation.mp4       # Vehicle path animation
+│   └── grid_path_planning_results.png  # Path planning visualization
 └── test_acados/
 ```
 
