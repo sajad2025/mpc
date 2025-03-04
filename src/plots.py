@@ -269,4 +269,121 @@ def plot_all_paths(successful_results, goal_x, goal_y, save_path=None):
         plt.savefig(save_path, bbox_inches='tight')
     
     # Show plot
-    plt.show() 
+    plt.show()
+
+def plot_results_xy(results, ego, title="Vehicle Trajectory", show_arrows=True, save_path=None):
+    """
+    Create a plot showing the XY trajectory and velocity profile of the vehicle.
+    
+    Args:
+        results: Dictionary containing simulation results (t, x, u, status)
+        ego: EgoConfig object containing vehicle parameters
+        title: Plot title
+        show_arrows: Whether to show direction arrows along the path
+        save_path: Path to save the figure, if None, the figure is not saved
+        
+    Returns:
+        fig, axes: The figure and axes objects
+    """
+    t = results['t']
+    x = results['x']
+    
+    # Create figure with two subplots
+    fig = plt.figure(figsize=(15, 10))
+    gs = plt.GridSpec(2, 1, height_ratios=[2, 1])
+    
+    # XY trajectory subplot
+    ax_xy = fig.add_subplot(gs[0])
+    
+    # Plot trajectory
+    ax_xy.plot(x[:, 0], x[:, 1], 'b-', label='path (m)')
+    ax_xy.plot(ego.state_start[0], ego.state_start[1], 'go', label='start')
+    ax_xy.plot(ego.state_final[0], ego.state_final[1], 'ro', label='goal')
+    
+    # Add direction arrows along the path
+    if show_arrows:
+        sample_interval = max(1, len(x) // 30)  # More arrows but smaller
+        sampled_points = x[::sample_interval]
+        directions_x = np.cos(sampled_points[:, 2])
+        directions_y = np.sin(sampled_points[:, 2])
+        ax_xy.quiver(sampled_points[:, 0], sampled_points[:, 1], 
+                    directions_x, directions_y,
+                    color='blue', alpha=0.3, scale=12, scale_units='inches',
+                    width=0.003, headwidth=4, headlength=5)
+    
+    # Calculate and plot corridor
+    point_a = (ego.state_start[0], ego.state_start[1])
+    point_b = (ego.state_final[0], ego.state_final[1])
+    c1, a1, b1, c2, a2, b2 = corridor_cal(point_a, point_b, ego.corridor_width)
+    
+    # Calculate plot bounds with margin
+    margin = ego.corridor_width * 2
+    x_min = min(point_a[0], point_b[0]) - margin
+    x_max = max(point_a[0], point_b[0]) + margin
+    y_min = min(point_a[1], point_b[1]) - margin
+    y_max = max(point_a[1], point_b[1]) + margin
+    
+    # Use parametric approach to draw boundary lines
+    t_param = np.linspace(-1, 2, 100)
+    
+    # Calculate direction vector of the line
+    dx = point_b[0] - point_a[0]
+    dy = point_b[1] - point_a[1]
+    
+    # Normalize
+    length = np.sqrt(dx**2 + dy**2)
+    dx, dy = dx/length, dy/length
+    
+    # Normal vector (perpendicular to direction)
+    nx, ny = -dy, dx
+    
+    # Points along the original line (extended)
+    line_x = point_a[0] + t_param * dx * length
+    line_y = point_a[1] + t_param * dy * length
+    
+    # Upper boundary
+    upper_x = line_x + nx * ego.corridor_width
+    upper_y = line_y + ny * ego.corridor_width
+    
+    # Lower boundary
+    lower_x = line_x - nx * ego.corridor_width
+    lower_y = line_y - ny * ego.corridor_width
+    
+    # Plot corridor boundaries
+    ax_xy.plot(upper_x, upper_y, 'r--', alpha=0.3, label='corridor')
+    ax_xy.plot(lower_x, lower_y, 'r--', alpha=0.3)
+    
+    # Set plot properties for XY subplot
+    ax_xy.grid(True)
+    ax_xy.legend(loc='best')
+    ax_xy.set_aspect('equal')
+    ax_xy.set_xlabel('X position (m)')
+    ax_xy.set_ylabel('Y position (m)')
+    ax_xy.set_title(title)
+    
+    # Set better axis limits for XY subplot
+    ax_xy.set_xlim([min(x_min, np.min(x[:, 0])-2), max(x_max, np.max(x[:, 0])+2)])
+    ax_xy.set_ylim([min(y_min, np.min(x[:, 1])-2), max(y_max, np.max(x[:, 1])+2)])
+    
+    # Velocity subplot
+    ax_vel = fig.add_subplot(gs[1])
+    
+    # Plot velocity
+    ax_vel.plot(t, x[:, 3], 'b-', label='velocity')
+    ax_vel.axhline(y=ego.velocity_max, color='k', linestyle='--', alpha=0.3, label='bounds')
+    ax_vel.axhline(y=ego.velocity_min, color='k', linestyle='--', alpha=0.3)
+    
+    # Set plot properties for velocity subplot
+    ax_vel.grid(True)
+    ax_vel.set_xlabel('Time (s)')
+    ax_vel.set_ylabel('Velocity (m/s)')
+    ax_vel.legend(loc='best')
+    
+    # Adjust layout
+    plt.tight_layout()
+    
+    # Save the figure if requested
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    
+    return fig, (ax_xy, ax_vel) 

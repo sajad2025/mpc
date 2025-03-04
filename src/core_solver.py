@@ -396,6 +396,11 @@ def generate_controls(ego, sim_cfg):
     # Solve OCP
     status = acados_solver.solve()
     
+    # Return None if solver failed
+    if status != 0:
+        print(f"Solver failed with status {status}")
+        return None
+    
     # Get solution
     for i in range(N):
         simX[i] = acados_solver.get(i, "x")

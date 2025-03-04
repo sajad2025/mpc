@@ -113,9 +113,10 @@ if __name__ == "__main__":
     ego = EgoConfig()
     # Now we can directly set angles without explicit normalization
     # The EgoConfig class will handle normalization internally
-    ego.state_start = [0, 0, 0*np.pi/2, 0, 0]  # 2π will be normalized to 0
-    ego.state_final = [20, 30, 1*np.pi/2, 0, 0]
-    ego.corridor_width = 2.0
+    ego.state_start = [0, 0,   1*np.pi/2, 0, 0]  # 2π will be normalized to 0
+    ego.state_final = [20, 0, -1*np.pi/2, 0.5, 0]
+    ego.corridor_width = 10.0
+    ego.velocity_min = 0.0
     
     # Clean up any existing Acados files
     clean_acados_files()
