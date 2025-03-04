@@ -2,7 +2,7 @@
 
 import os
 import numpy as np
-from core_solver import EgoConfig, SimConfig, calculate_path_duration
+from core_solver import EgoConfig, SimConfig
 from path_finder import find_path
 from plots import plot_all_paths
 
@@ -70,11 +70,6 @@ def grid_path_planning(goal_x, goal_y, goal_theta, grid_size=20, grid_step=1, nu
                 ego.state_final = base_ego.state_final.copy()
                 ego.state_start = [x, y, theta, 0, 0]
                 
-                # Calculate initial duration based on distance and velocity
-                # start_pos = [x, y]
-                # end_pos = [goal_x, goal_y]
-                # duration = calculate_path_duration(start_pos, end_pos, ego.velocity_max)
-                
                 # First attempt with calculated duration
                 try:
                     # Use verbose=False to suppress compilation output
@@ -89,21 +84,6 @@ def grid_path_planning(goal_x, goal_y, goal_theta, grid_size=20, grid_step=1, nu
                             'ego': ego
                         })
                         continue  # Move to next combination
-                    
-                    # If first attempt failed, try again with tripled duration
-                    # print(f"✗ First attempt failed, trying again with tripled duration...")
-                    # tripled_duration = duration * 3
-                    # results = find_path(ego, duration=tripled_duration, dt=0.1, verbose=False)
-                    
-                    # if results is not None:
-                    #     print(f"✓ Path planning successful with tripled duration")
-                    #     successful_results.append({
-                    #         'start': (x, y, theta),
-                    #         'results': results,
-                    #         'ego': ego
-                    #     })
-                    # else:
-                    #     print(f"✗ Path planning failed for second time")
                     
                 except Exception as e:
                     print(f"✗ Error during path planning: {str(e)}")

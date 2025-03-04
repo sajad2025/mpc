@@ -94,65 +94,8 @@ class EgoConfig:
 
 class SimConfig:
     def __init__(self):
-        self.duration = 30.0
-        self.dt = 0.1
-
-def calculate_path_duration(start_pos, end_pos, max_velocity, margin=5.0):
-    """
-    Calculate a reasonable duration for path planning based on distance and max velocity.
-    
-    Args:
-        start_pos: Starting position [x, y]
-        end_pos: End position [x, y]
-        max_velocity: Maximum allowed velocity
-        margin: Additional time margin in seconds
-        
-    Returns:
-        Estimated duration in seconds
-    """
-    # Calculate Euclidean distance
-    distance = np.sqrt((end_pos[0] - start_pos[0])**2 + (end_pos[1] - start_pos[1])**2)
-    
-    # Calculate duration based on distance and max velocity, plus margin
-    duration = (distance / max_velocity) + margin
-    
-    return duration
-
-def calc_time_range(ego, duration_range_margin=5.0):
-    """
-    Calculate the minimum and maximum duration for path planning based on the distance
-    between start and goal positions and the vehicle's maximum velocity.
-    
-    Args:
-        ego: Object containing vehicle parameters and constraints
-        duration_range_margin: Margin to add/subtract from middle duration to set search range (default: 5.0 seconds)
-        
-    Returns:
-        Tuple containing (initial_duration, min_duration, max_duration, distance)
-    """
-    # Extract start and end positions
-    start_x, start_y = ego.state_start[0], ego.state_start[1]
-    end_x, end_y = ego.state_final[0], ego.state_final[1]
-    
-    # Calculate Euclidean distance
-    distance = np.sqrt((end_x - start_x)**2 + (end_y - start_y)**2)
-    
-    # Calculate middle duration based on distance and max velocity
-    # Use absolute value of velocity_max to handle negative velocities
-    velocity_abs = abs(ego.velocity_max) if ego.velocity_max != 0 else abs(ego.velocity_min)
-    if velocity_abs == 0:
-        # If both velocity limits are 0, use a default value
-        velocity_abs = 1.0
-        print("Warning: Both velocity_max and velocity_min are 0. Using default velocity of 1.0 m/s.")
-    
-    duration_middle = distance / velocity_abs
-    
-    # Set search range
-    initial_duration = duration_middle
-    min_duration = max(duration_middle - duration_range_margin, 1.0)  # Ensure min_duration is at least 1 second
-    max_duration = duration_middle + duration_range_margin
-    
-    return initial_duration, min_duration, max_duration, distance
+        self.duration = 30.0  # seconds
+        self.dt = 0.1  # seconds
 
 def generate_controls(ego, sim_cfg):
     """

@@ -11,7 +11,7 @@ import subprocess
 import numpy as np
 import matplotlib.pyplot as plt
 from contextlib import contextmanager
-from core_solver import generate_controls, EgoConfig, SimConfig, calculate_path_duration
+from core_solver import generate_controls, EgoConfig, SimConfig
 
 class SuppressOutput:
     """
@@ -109,25 +109,20 @@ def clean_acados_files():
         print("Error cleaning up files.")
 
 if __name__ == "__main__":
-    # Example usage
+
     ego = EgoConfig()
-    # Now we can directly set angles without explicit normalization
+
     # The EgoConfig class will handle normalization internally
     ego.state_start = [0, 0,   1*np.pi/2, 1.0, 0]  # 2π will be normalized to 0
     ego.state_final = [20, 0, -1*np.pi/2, 1.0, 0]
     ego.corridor_width = 7.0
     ego.velocity_min = 0.0
-
-    # ego.weight_velocity = 0.0 
-    # ego.weight_acceleration = 100
     
-    # Clean up any existing Acados files
     clean_acados_files()
     
     results = find_path(ego, duration=40, dt=0.1, verbose=True)
     print("Path planning completed.")
     
-    # Import plot_results only if needed
     if results is not None:
         from plots import plot_results
         plot_results(results, ego, save_path='docs/path_finder_results.png', show_xy_plot=True)
