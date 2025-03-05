@@ -127,8 +127,11 @@ ego.velocity_min = -3.0
 ego.steering_max = 0.5
 ego.steering_min = -0.5
 
+# Set obstacles
+ego.obstacles = None
+
 # Cost weights
-ego.weight_acceleration = 1.0
+ego.weight_acceleration = 100.0
 ego.weight_steering_rate = 100.0
 ego.weight_steering_angle = 1.0
 

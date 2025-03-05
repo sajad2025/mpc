@@ -26,8 +26,11 @@ class EgoConfig:
         self.corridor_width = 15.0  # Width of the corridor in meters
         
         # Start and goal states [x, y, theta, velocity, steering]
-        self._state_start = [0, 0, 0, 0, 0]
-        self._state_final = [20, 20, np.pi/2, 0, 0]
+        self._state_start = [-40, 0, 0, 0, 0]
+        self._state_final = [+40, 0, 0, 0, 0]
+        
+        # Obstacle list - each obstacle is [x, y, radius, safety_margin]
+        self.obstacles = None
         
         # Cost function weights
         # Path cost weights
@@ -259,7 +262,7 @@ def generate_controls(ego, sim_cfg):
     # First row: -c1*y - a1*x <= b1
     C[0, 0] = float(-a1)  # x coefficient
     C[0, 1] = float(-c1)  # y coefficient
-    # Second row: c2*y + a2*x <= -b2
+    # Second row: c2*y + a2*x + b2 <= 0
     C[1, 0] = float(a2)   # x coefficient
     C[1, 1] = float(c2)   # y coefficient
     
@@ -305,6 +308,28 @@ def generate_controls(ego, sim_cfg):
         ego.state_final[4] + eps_vel
     ])
     ocp.constraints.idxbx_e = np.array(range(nx))
+
+    # nonlinear constraint for obstacle avoidance
+    if ego.obstacles is not None and len(ego.obstacles) > 0:
+        # Create a list to store all distance expressions
+        dist_exprs = []
+        
+        # Add a constraint for each obstacle
+        for obs in ego.obstacles:
+            obs_x, obs_y, obs_r, safety_margin = obs
+            # Distance formula: (x-x0)^2 + (y-y0)^2 - (r+safety)^2
+            dist_expr = (x[0] - obs_x)**2 + (x[1] - obs_y)**2 - (obs_r + safety_margin)**2
+            dist_exprs.append(dist_expr)
+        
+        # Combine all distance expressions into a single constraint vector
+        ocp.model.con_h_expr = vertcat(*dist_exprs)
+        ocp.dims.nh = len(dist_exprs)
+        
+        # Set lower and upper bounds for all constraints
+        # Lower bound of 0 means the vehicle must stay outside the obstacle
+        ocp.constraints.lh = np.zeros(len(dist_exprs))
+        # Upper bound of inf means there's no maximum distance
+        ocp.constraints.uh = np.ones(len(dist_exprs)) * 1e9
     
     # Create solver
     acados_solver = AcadosOcpSolver(ocp, json_file='acados_ocp_' + ocp.model_name + '.json')
@@ -312,6 +337,121 @@ def generate_controls(ego, sim_cfg):
     # Initialize solution containers
     simX = np.ndarray((N+1, nx))
     simU = np.ndarray((N, nu))
+    
+    def adjust_point_for_obstacles(x_init, y_init):
+        """
+        Check if a point is inside any obstacle and move it to the boundary if it is.
+        When an obstacle is on the path-line (line connecting start to goal),
+        shift the entire path-line and project the point onto this shifted line.
+        
+        Args:
+            x_init, y_init: Initial point coordinates
+            
+        Returns:
+            x_adjusted, y_adjusted: Point coordinates after obstacle avoidance
+        """
+        if ego.obstacles is None:
+            return x_init, y_init
+            
+        x_adjusted, y_adjusted = x_init, y_init
+        
+        # Define the path-line (line from start to goal)
+        start_x, start_y = ego.state_start[0], ego.state_start[1]
+        goal_x, goal_y = ego.state_final[0], ego.state_final[1]
+        
+        # Calculate path direction vector and normalize it
+        path_dx = goal_x - start_x
+        path_dy = goal_y - start_y
+        path_length = np.sqrt(path_dx**2 + path_dy**2)
+        
+        if path_length < 1e-6:  # Avoid division by zero
+            return x_init, y_init
+            
+        path_dx /= path_length
+        path_dy /= path_length
+        
+        # Calculate normal vector to the path (90 degrees counterclockwise)
+        normal_dx = -path_dy
+        normal_dy = path_dx
+        
+        # Check if any obstacle is on the path-line
+        path_shift = 0
+        shift_direction = 1  # 1 for positive normal direction, -1 for negative
+        
+        for obs in ego.obstacles:
+            obs_x, obs_y, obs_r, safety_margin = obs
+            total_radius = obs_r + safety_margin + 0.05
+            
+            # Vector from start to obstacle
+            obs_dx = obs_x - start_x
+            obs_dy = obs_y - start_y
+            
+            # Project obstacle vector onto path vector
+            projection = obs_dx * path_dx + obs_dy * path_dy
+            
+            # Find closest point on path to obstacle
+            closest_x = start_x + projection * path_dx
+            closest_y = start_y + projection * path_dy
+            
+            # Distance from obstacle center to path-line
+            dist_to_path = np.sqrt((closest_x - obs_x)**2 + (closest_y - obs_y)**2)
+            
+            # Check if obstacle is on path (within obstacle radius and projection is within path length)
+            if dist_to_path < total_radius and 0 <= projection <= path_length:
+                # Determine which side of the path the point is currently on
+                point_side = (x_init - start_x) * normal_dx + (y_init - start_y) * normal_dy
+                if point_side < 0:
+                    shift_direction = -1
+                
+                # Calculate how much we need to shift the path to avoid this obstacle
+                needed_shift = total_radius - dist_to_path
+                if needed_shift > path_shift:
+                    path_shift = needed_shift
+        
+        # If we need to shift the path
+        if path_shift > 0:
+            # Create shifted path-line
+            shift_amount = path_shift + 0.1  # Add a small buffer
+            shifted_start_x = start_x + shift_direction * normal_dx * shift_amount
+            shifted_start_y = start_y + shift_direction * normal_dy * shift_amount
+            shifted_goal_x = goal_x + shift_direction * normal_dx * shift_amount
+            shifted_goal_y = goal_y + shift_direction * normal_dy * shift_amount
+            
+            # Project the initial point onto this shifted line
+            # Vector from shifted_start to point
+            v_dx = x_init - shifted_start_x
+            v_dy = y_init - shifted_start_y
+            
+            # Project this vector onto the path direction
+            proj = v_dx * path_dx + v_dy * path_dy
+            proj = max(0, min(proj, path_length))  # Clamp to path length
+            
+            # The adjusted point is on the shifted line at the projected distance
+            x_adjusted = shifted_start_x + proj * path_dx
+            y_adjusted = shifted_start_y + proj * path_dy
+            
+            return x_adjusted, y_adjusted
+        
+        # If no path shift was needed, check if the point itself is in an obstacle
+        for obs in ego.obstacles:
+            obs_x, obs_y, obs_r, safety_margin = obs
+            total_radius = obs_r + safety_margin + 0.05
+            
+            # Calculate distance from point to obstacle center
+            dx = x_adjusted - obs_x
+            dy = y_adjusted - obs_y
+            distance = np.sqrt(dx**2 + dy**2)
+            
+            # If point is inside obstacle (including safety margin)
+            if distance < total_radius:
+                # Calculate angle of point relative to obstacle center
+                angle = np.arctan2(dy, dx)
+                
+                # Move point to boundary
+                x_adjusted = obs_x + total_radius * np.cos(angle)
+                y_adjusted = obs_y + total_radius * np.sin(angle)
+        
+        return x_adjusted, y_adjusted
     
     # Initialize with a trajectory that respects the corridor
     # Calculate center line of the corridor
@@ -324,6 +464,9 @@ def generate_controls(ego, sim_cfg):
         # Ensure initial guess satisfies corridor constraints
         y_center = -(a1*x_init + b1/2 + a2*x_init + b2/2)/2
         y_init = min(max(y_init, y_center - ego.corridor_width/2), y_center + ego.corridor_width/2)
+        
+        # Adjust point if it's inside any obstacle
+        x_init, y_init = adjust_point_for_obstacles(x_init, y_init)
         
         # Linear interpolation for other states
         theta_init = ego.state_start[2] + t * (ego.state_final[2] - ego.state_start[2])

@@ -41,6 +41,31 @@ def plot_results(results, ego, save_path=None, show_xy_plot=False):
                      directions_x, directions_y,
                      color='blue', alpha=0.6, scale=5, scale_units='inches')
         
+        # Plot obstacles if present
+        if hasattr(ego, 'obstacles') and ego.obstacles is not None:
+            for obs in ego.obstacles:
+                obs_x, obs_y, obs_r, safety_margin = obs
+                # Draw the obstacle
+                obstacle = plt.Circle((obs_x, obs_y), obs_r, color='r', alpha=0.5)
+                # Draw the safety margin
+                safety_circle = plt.Circle((obs_x, obs_y), obs_r + safety_margin, color='r', alpha=0.2)
+                ax.add_patch(obstacle)
+                ax.add_patch(safety_circle)
+            
+            # Add obstacle to legend if there are obstacles
+            if len(ego.obstacles) > 0:
+                # Create a proxy artist for the legend
+                obstacle_proxy = plt.Line2D([0], [0], marker='o', color='w', 
+                                          markerfacecolor='r', markersize=10, alpha=0.5,
+                                          label='obstacle')
+                # Get current handles and labels
+                handles, labels = ax.get_legend_handles_labels()
+                # Add the new handle
+                handles.append(obstacle_proxy)
+                labels.append('obstacle')
+                # Update the legend
+                ax.legend(handles, labels, bbox_to_anchor=(1.15, 1), loc='upper left')
+        
         # Calculate and plot corridor
         point_a = (ego.state_start[0], ego.state_start[1])
         point_b = (ego.state_final[0], ego.state_final[1])
@@ -82,7 +107,8 @@ def plot_results(results, ego, save_path=None, show_xy_plot=False):
         ax.plot(lower_x, lower_y, 'r--', alpha=0.3)
         
         ax.grid(True)
-        ax.legend(bbox_to_anchor=(1.15, 1), loc='upper left')
+        # Position legend outside the plot on the left side
+        ax.legend(loc='upper right', bbox_to_anchor=(-0.1, 1), borderaxespad=0)
         ax.set_aspect('equal')
         
         if title:
@@ -310,6 +336,31 @@ def plot_results_xy(results, ego, title="Vehicle Trajectory", show_arrows=True, 
                     directions_x, directions_y,
                     color='blue', alpha=0.3, scale=12, scale_units='inches',
                     width=0.003, headwidth=4, headlength=5)
+    
+    # Plot obstacles if present
+    if hasattr(ego, 'obstacles') and ego.obstacles is not None:
+        for obs in ego.obstacles:
+            obs_x, obs_y, obs_r, safety_margin = obs
+            # Draw the obstacle
+            obstacle = plt.Circle((obs_x, obs_y), obs_r, color='r', alpha=0.5)
+            # Draw the safety margin
+            safety_circle = plt.Circle((obs_x, obs_y), obs_r + safety_margin, color='r', alpha=0.2)
+            ax_xy.add_patch(obstacle)
+            ax_xy.add_patch(safety_circle)
+        
+        # Add obstacle to legend if there are obstacles
+        if len(ego.obstacles) > 0:
+            # Create a proxy artist for the legend
+            obstacle_proxy = plt.Line2D([0], [0], marker='o', color='w', 
+                                      markerfacecolor='r', markersize=10, alpha=0.5,
+                                      label='obstacle')
+            # Get current handles and labels
+            handles, labels = ax_xy.get_legend_handles_labels()
+            # Add the new handle
+            handles.append(obstacle_proxy)
+            labels.append('obstacle')
+            # Update the legend
+            ax_xy.legend(handles, labels)
     
     # Calculate and plot corridor
     point_a = (ego.state_start[0], ego.state_start[1])

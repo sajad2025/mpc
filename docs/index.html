@@ -69,11 +69,42 @@
             font-size: 14px;
             color: #7f8c8d;
         }
+        .image-panel {
+            flex: 1;
+            min-width: 300px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .image-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .image-container img {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .empty-panel {
+            flex: 1;
+            min-width: 300px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 15px;
+            margin-bottom: 20px;
+            min-height: 300px; /* Ensure the empty panel has some height */
+        }
     </style>
 </head>
 <body>
     <div class="content-container">
         <div class="video-panel">
+            <h2>Road Path</h2>
             <div class="video-container">
                 <video id="animation" controls>
                     <source src="path_animation.mp4" type="video/mp4">
@@ -88,6 +119,7 @@
         </div>
 
         <div class="video-panel">
+            <h2>Parking Maneuvers</h2>
             <div class="video-container">
                 <video id="grid-animation" controls>
                     <source src="grid_paths_animation.mp4" type="video/mp4">
@@ -99,6 +131,19 @@
                 <button onclick="document.getElementById('grid-animation').pause()">Pause</button>
                 <button onclick="document.getElementById('grid-animation').currentTime = 0">Restart</button>
             </div>
+        </div>
+    </div>
+
+    <div class="content-container">
+        <div class="image-panel">
+            <h2>Obstacle Avoidance</h2>
+            <div class="image-container">
+                <img src="path_finder_xy.png" alt="Obstacle Avoidance Path Planning">
+            </div>
+        </div>
+
+        <div class="empty-panel">
+            <!-- This panel is intentionally left empty for future content -->
         </div>
     </div>
 

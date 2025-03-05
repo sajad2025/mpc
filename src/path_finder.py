@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from contextlib import contextmanager
 from core_solver import generate_controls, EgoConfig, SimConfig
+from plots import plot_results
 
 class SuppressOutput:
     """
@@ -45,7 +46,7 @@ class SuppressOutput:
             except:
                 pass
 
-def find_path(ego, duration, dt=0.1, verbose=True):
+def find_path(ego, duration, dt=0.1, verbose=True, obstacles=None):
     """
     Find a feasible path using the specified duration.
     
@@ -54,6 +55,7 @@ def find_path(ego, duration, dt=0.1, verbose=True):
         duration: Fixed duration for path planning (seconds)
         dt: Time step for discretization
         verbose: Whether to print progress messages and compilation output
+        obstacles: List of obstacles, each defined as [x, y, radius, safety_margin]
         
     Returns:
         Results dictionary containing the path and control inputs
@@ -64,6 +66,12 @@ def find_path(ego, duration, dt=0.1, verbose=True):
         distance = np.sqrt((end_pos[0] - start_pos[0])**2 + (end_pos[1] - start_pos[1])**2)
         print(f"Distance from start to goal: {distance:.2f} meters")
         print(f"Using duration: {duration:.2f} seconds")
+    
+    # Set obstacles if provided
+    if obstacles is not None:
+        ego.obstacles = obstacles
+        if verbose:
+            print(f"Added {len(obstacles)} obstacles to the path planning problem")
     
     # Create simulation config
     sim_cfg = SimConfig()
@@ -109,22 +117,26 @@ def clean_acados_files():
         print("Error cleaning up files.")
 
 if __name__ == "__main__":
-
-    ego = EgoConfig()
-
-    # The EgoConfig class will handle normalization internally
-    ego.state_start = [0, 0,   1*np.pi/2, 1.0, 0]  # 2π will be normalized to 0
-    ego.state_final = [20, 0, -1*np.pi/2, 1.0, 0]
-    ego.corridor_width = 7.0
-    ego.velocity_min = 0.0
-    
+    # Clean up any existing Acados files
     clean_acados_files()
     
-    results = find_path(ego, duration=40, dt=0.1, verbose=True)
-    print("Path planning completed.")
+    # Create ego vehicle configuration
+    ego = EgoConfig()
+
+    # Set start and end states
+    ego.state_start = [-20, 20, -np.pi/4, 0.0, 0]
+    ego.state_final = [20, -20, -np.pi/4, 0.0, 0]
+    ego.corridor_width = 10.0
+    ego.velocity_min = 0.0
     
+    # Set obstacles [x, y, radius, safety_margin]
+    multiple_obstacles = [
+        [-7,  12,  4.0, 1.0], 
+        [7,  -12,  4.0, 1.0]
+    ]
+    
+    results = find_path(ego, duration=40, dt=0.1, verbose=True, obstacles=multiple_obstacles)
     if results is not None:
-        from plots import plot_results
-        plot_results(results, ego, save_path='docs/path_finder_results.png', show_xy_plot=True)
+        plot_results(results, ego, save_path='docs/path_finder.png', show_xy_plot=True)
     else:
-        print("No feasible path found.") 
+        print("No feasible path found for Example 3.") 
