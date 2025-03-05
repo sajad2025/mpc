@@ -21,7 +21,7 @@
             justify-content: center;
             margin-top: 20px;
         }
-        .video-panel, .image-panel {
+        .video-panel {
             flex: 1;
             min-width: 300px;
             background-color: #fff;
@@ -30,12 +30,12 @@
             padding: 15px;
             margin-bottom: 20px;
         }
-        .video-container, .image-container {
+        .video-container {
             display: flex;
             justify-content: center;
             margin: 10px 0;
         }
-        video, img {
+        video {
             max-width: 100%;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
@@ -72,7 +72,6 @@
     </style>
 </head>
 <body>
-    <h2>Sequential Path Planning</h2>
     <div class="content-container">
         <div class="video-panel">
             <div class="video-container">
@@ -88,16 +87,7 @@
             </div>
         </div>
 
-        <div class="image-panel">
-            <div class="image-container">
-                <img src="grid_path_planning_results.png" alt="Grid Path Planning Results">
-            </div>
-        </div>
-    </div>
-
-    <h2>Grid Path Planning Animation</h2>
-    <div class="content-container">
-        <div class="video-panel" style="flex: 2; max-width: 100%;">
+        <div class="video-panel">
             <div class="video-container">
                 <video id="grid-animation" controls>
                     <source src="grid_paths_animation.mp4" type="video/mp4">
