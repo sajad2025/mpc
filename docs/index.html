@@ -28,6 +28,7 @@
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             padding: 15px;
+            margin-bottom: 20px;
         }
         .video-container, .image-container {
             display: flex;
@@ -57,6 +58,11 @@
         button:hover {
             background-color: #2980b9;
         }
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-top: 10px;
+        }
         footer {
             margin-top: 50px;
             text-align: center;
@@ -66,6 +72,7 @@
     </style>
 </head>
 <body>
+    <h2>Sequential Path Planning</h2>
     <div class="content-container">
         <div class="video-panel">
             <div class="video-container">
@@ -88,6 +95,23 @@
         </div>
     </div>
 
+    <h2>Grid Path Planning Animation</h2>
+    <div class="content-container">
+        <div class="video-panel" style="flex: 2; max-width: 100%;">
+            <div class="video-container">
+                <video id="grid-animation" controls>
+                    <source src="grid_paths_animation.mp4" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+            <div class="controls">
+                <button onclick="document.getElementById('grid-animation').play()">Play</button>
+                <button onclick="document.getElementById('grid-animation').pause()">Pause</button>
+                <button onclick="document.getElementById('grid-animation').currentTime = 0">Restart</button>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <p>Model Predictive Control (MPC) Vehicle Path Planning</p>
         <p>&copy; <script>document.write(new Date().getFullYear())</script> - Vehicle Path Planning Project</p>
@@ -97,6 +121,8 @@
         // Auto-play when the page loads
         document.addEventListener('DOMContentLoaded', function() {
             const video = document.getElementById('animation');
+            const gridVideo = document.getElementById('grid-animation');
+            
             // Some browsers block autoplay, so we use this approach
             const playPromise = video.play();
             

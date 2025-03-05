@@ -16,17 +16,16 @@ This repository contains implementations of Model Predictive Control using Acado
 ├── requirements.txt
 ├── setup.sh
 ├── src/
-│   ├── core_solver.py           # Core solver functionality and vehicle configuration
+│   ├── core_solver.py           # Core optimization solver
 │   ├── path_finder.py           # Path finding utilities
 │   ├── grid_path_plan.py        # Grid-based path planning
-│   ├── plots.py                 # Visualization functions
-│   ├── scenarios.py             # Path planning scenarios
-│   ├── create_animation.py      # Animation generator for path visualization
-│   └── sequential_planning.py   # Sequential path planning implementation
+│   ├── plots.py                 # Plot functions
+│   ├── scenarios.py             # Road scenarios
+│   └── create_animation.py      # Road animation
 ├── docs/
 │   ├── index.html               # GitHub Pages website
 │   ├── path_animation.mp4       # Vehicle path animation
-│   └── grid_path_planning_results.png  # Path planning visualization
+│   └── grid_paths_animation.mp4 # Grid path planning animation
 └── test_acados/
 ```
 
@@ -99,12 +98,18 @@ deactivate
 python src/path_finder.py
 ```
 
-2. Grid-based path planning:
+2. Grid-based path planning with animation:
 ```bash
-python src/grid_path_plan.py
+python src/grid_path_plan.py --animate
 ```
 
-Generated plots will be saved in the `docs` directory. 
+3. Road path planning with animation:
+```bash
+python src/scenarios.py
+python src/create_animation.py
+```
+
+Generated plots and animations will be saved in the `docs` directory.
 
 ### Configuration Options
 
