@@ -45,6 +45,9 @@ class EgoConfig:
         self.weight_terminal_heading = 100.0
         self.weight_terminal_velocity = 10.0
         self.weight_terminal_steering = 10.0
+
+        # Output verbosity
+        self.verbose = True  # Whether to print detailed output from solvers
     
     @staticmethod
     def normalize_angle(angle):
@@ -231,7 +234,7 @@ def generate_controls(ego, sim_cfg):
     # Additional numerical options for better convergence
     ocp.solver_options.qp_solver_iter_max = 50
     ocp.solver_options.tol = 1e-3
-    ocp.solver_options.print_level = 1
+    ocp.solver_options.print_level = 0 if not ego.verbose else 1
     
     # Set constraints with slack
     # Use smaller slack for better precision at the terminal state

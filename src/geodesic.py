@@ -11,31 +11,29 @@ import subprocess
 import numpy as np
 import matplotlib.pyplot as plt
 from contextlib import contextmanager
-from core_solver import generate_controls, EgoConfig, SimConfig
-from plots import plot_results
-from utils.io_utils import SuppressOutput, clean_acados_files  # Import SuppressOutput and clean_acados_files from utils
+from core_solver_geodesic import generate_controls_geodesic, EgoConfig, SimConfig
+from plots import plot_results_geodesic
+from utils.io_utils import clean_acados_files, SuppressOutput
 
-def find_path(ego, sim_cfg):
+def find_path_geodesic(ego, sim_cfg):
     """
     Find a feasible path using the specified duration.
     
     Args:
         ego: Object containing vehicle parameters and constraints
         sim_cfg: duration and dt
-        verbose: Whether to print progress messages and compilation output
         
     Returns:
         Results dictionary containing the path and control inputs
     """
-
     # Generate controls
     try:
         # Suppress output if not verbose
         if not ego.verbose:
             with SuppressOutput():
-                results = generate_controls(ego, sim_cfg)
+                results = generate_controls_geodesic(ego, sim_cfg)
         else:
-            results = generate_controls(ego, sim_cfg)
+            results = generate_controls_geodesic(ego, sim_cfg)
             
         status = results['status']
         
@@ -53,33 +51,25 @@ def find_path(ego, sim_cfg):
             print(f"✗ Error during path planning: {str(e)}")
         return None
 
-if __name__ == "__main__":
-    # Clean up any existing Acados files
+if __name__ == "__main__":   
     clean_acados_files()
 
-    # Create simulation config
     sim_cfg = SimConfig()
-    sim_cfg.duration = 40
-    
-    # Create ego vehicle configuration
-    ego = EgoConfig()
-    ego.verbose = True
 
-    ego.state_start = [-20, 20, -np.pi/4, 0.0, 0]
-    ego.state_final = [20, -20, -np.pi/4, 0.0, 0]
-    ego.corridor_width = 10.0
-    ego.velocity_min = 0.0
+    ego = EgoConfig()
+    ego.verbose = False
+
+    r = 5.5
+    print(f"min turning radius {ego.L / np.tan(ego.steering_max)}")
+
+    ego.state_start     = [-r,  0,  np.pi/2, -0.5] # [x, y, theta, steering]
+    ego.state_final     = [0,   r,  0,       -0.5]
+    ego.corridor_width  = 1
+    sim_cfg.duration    = (2 *np.pi * r) * .251
     
-    # Set obstacles [x, y, radius, safety_margin]
-    multiple_obstacles = [
-        [-7,  12,  4.0, 1.0], 
-        [7,  -12,  4.0, 1.0]
-    ]
-    ego.obstacles = multiple_obstacles
-    
-    results = find_path(ego, sim_cfg)
+    results = find_path_geodesic(ego, sim_cfg)
     
     if results is not None:
-        plot_results(results, ego, save_path='docs/path_finder.png', show_xy_plot=True)
+        plot_results_geodesic(results, ego, save_path='docs/geodesic.png')
     else:
-        print("No feasible path found.") 
+        print("No feasible path.") 

@@ -48,12 +48,13 @@ def grid_path_planning(goal_x, goal_y, goal_theta, grid_size=20, grid_step=1, nu
     
     print(f"Grid search with {len(x_points)}x{len(y_points)} positions and {num_angles} angles")
     print(f"Total combinations to try: {total_combinations}")
+
+    # Create simulation config
+    sim_cfg = SimConfig()
+    sim_cfg.duration = 80
     
-    # Create base ego configuration
-    base_ego = EgoConfig()
-    
-    # Set goal state
-    base_ego.state_final = [goal_x, goal_y, goal_theta, 0, 0]
+    # fixed state_final configuration
+    state_final = [goal_x, goal_y, goal_theta, 0, 0]
     
     # Loop through all grid points and angles
     for x in x_points:
@@ -71,15 +72,12 @@ def grid_path_planning(goal_x, goal_y, goal_theta, grid_size=20, grid_step=1, nu
                 
                 # Create a new ego config for this combination
                 ego = EgoConfig()
-                ego.state_final = base_ego.state_final.copy()
+                ego.state_final = state_final.copy()
                 ego.state_start = [x, y, theta, 0, 0]
+                ego.verbose     = False
                 
-                # First attempt with calculated duration
                 try:
-                    # Use verbose=False to suppress compilation output
-                    results = find_path(ego, duration=80, dt=0.1, verbose=False)
-                    
-                    # If first attempt successful, store results
+                    results = find_path(ego, sim_cfg)
                     if results is not None:
                         print(f"✓ Path planning successful")
                         successful_results.append({
@@ -87,7 +85,6 @@ def grid_path_planning(goal_x, goal_y, goal_theta, grid_size=20, grid_step=1, nu
                             'results': results,
                             'ego': ego
                         })
-                        continue  # Move to next combination
                     
                 except Exception as e:
                     print(f"✗ Error during path planning: {str(e)}")
@@ -311,7 +308,6 @@ if __name__ == "__main__":
         num_angles=args.num_angles
     )
     
-    # Plot all successful paths
     if successful_results:
         docs_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'docs')
         os.makedirs(docs_dir, exist_ok=True)

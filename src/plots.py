@@ -437,4 +437,120 @@ def plot_results_xy(results, ego, title="Vehicle Trajectory", show_arrows=True, 
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
     
-    return fig, (ax_xy, ax_vel) 
+    return fig, (ax_xy, ax_vel)
+
+def plot_results_geodesic(results, ego, save_path=None, show_xy_plot=False):
+    """
+    Plot the geodesic path planning results.
+    
+    Args:
+        results: Dictionary containing t, x, and u from generate_controls_geodesic
+                where x has dimension 4 (x, y, theta, steering) instead of 5
+        ego: Object containing vehicle parameters
+        save_path: Optional path to save the plot. If provided:
+            - Main plot will be saved as {save_path}
+            - XY plot (if show_xy_plot=True) will be saved as {save_path_without_ext}_xy{ext}
+    """
+    t = results['t']
+    x = results['x']
+    u = results['u']
+    
+    # Create subplots (3x1 grid) - 25% smaller than before
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(7.5, 6.75))
+    
+    def plot_xy_trajectory(ax, title=None, show_arrows=False):
+        """Helper function to plot xy trajectory on any axes"""
+        # Plot trajectory
+        ax.plot(x[:, 0], x[:, 1], 'b-', label='path (m)')
+        ax.plot(ego.state_start[0], ego.state_start[1], 'go', label='start')
+        ax.plot(ego.state_final[0], ego.state_final[1], 'ro', label='goal')
+        
+        # Add direction arrows along the path (only if requested)
+        if show_arrows:
+            sample_interval = 10
+            sampled_points = x[::sample_interval]
+            directions_x = np.cos(sampled_points[:, 2])
+            directions_y = np.sin(sampled_points[:, 2])
+            ax.quiver(sampled_points[:, 0], sampled_points[:, 1], 
+                     directions_x, directions_y,
+                     color='blue', alpha=0.6, scale=5, scale_units='inches')
+        
+        # Plot obstacles if present
+        if hasattr(ego, 'obstacles') and ego.obstacles is not None:
+            for obs in ego.obstacles:
+                obs_x, obs_y, obs_r, safety_margin = obs
+                # Draw the obstacle
+                obstacle = plt.Circle((obs_x, obs_y), obs_r, color='r', alpha=0.5)
+                # Draw the safety margin
+                safety_circle = plt.Circle((obs_x, obs_y), obs_r + safety_margin, color='r', alpha=0.2)
+                ax.add_patch(obstacle)
+                ax.add_patch(safety_circle)
+            
+            # Add obstacle to legend if there are obstacles
+            if len(ego.obstacles) > 0:
+                # Create a proxy artist for the legend
+                obstacle_proxy = plt.Line2D([0], [0], marker='o', color='w', 
+                                          markerfacecolor='r', markersize=10, alpha=0.5,
+                                          label='obstacle')
+                # Get current handles and labels
+                handles, labels = ax.get_legend_handles_labels()
+                # Add the new handle
+                handles.append(obstacle_proxy)
+                labels.append('obstacle')
+                # Update the legend - position at southeast corner
+                ax.legend(handles, labels, loc='lower right')
+        
+        # No corridor plotting
+        
+        ax.grid(True)
+        # Southeast corner (lower right) legend
+        ax.legend(loc='lower right')
+        ax.set_aspect('equal')
+    
+    # Plot xy trajectory in main figure (without arrows)
+    plot_xy_trajectory(ax1, show_arrows=False)
+    # Add x and y labels to first subplot only
+    ax1.set_xlabel('x (m)')
+    ax1.set_ylabel('y (m)')
+    
+    # Create separate window for xy plot if requested (with arrows)
+    xy_fig = None
+    if show_xy_plot:
+        xy_fig = plt.figure(figsize=(9, 7.5))
+        xy_ax = xy_fig.add_subplot(111)
+        plot_xy_trajectory(xy_ax, show_arrows=True)
+        xy_fig.tight_layout()
+    
+    # Plot heading
+    ax2.plot(t, np.rad2deg(x[:, 2]), 'b-', label='heading (deg)')
+    ax2.axhline(y=np.rad2deg(ego.state_final[2]), color='r', linestyle='--', label='target heading')
+    ax2.grid(True)
+    # Southeast corner (lower right) legend
+    ax2.legend(loc='lower right')
+    
+    # Plot steering angle
+    ax3.plot(t, np.rad2deg(x[:, 3]), 'r-', label='steering angle (deg)')
+    if hasattr(ego, 'steering_max') and hasattr(ego, 'steering_min'):
+        ax3.axhline(y=np.rad2deg(ego.steering_max), color='k', linestyle='--', alpha=0.3, label='bounds')
+        ax3.axhline(y=np.rad2deg(ego.steering_min), color='k', linestyle='--', alpha=0.3)
+    ax3.set_xlabel('time (s)')
+    ax3.grid(True)
+    # Southeast corner (lower right) legend
+    ax3.legend(loc='lower right')
+    
+    plt.tight_layout()
+    
+    # Save plots if path is provided
+    if save_path:
+        # Save main plot
+        fig.savefig(save_path)
+        
+        # Save xy plot if it exists
+        if xy_fig and show_xy_plot:
+            # Split the save_path into name and extension
+            save_path_base, ext = os.path.splitext(save_path)
+            xy_save_path = f"{save_path_base}_xy{ext}"
+            xy_fig.savefig(xy_save_path)
+    
+    # Show the plot and keep it open
+    plt.show(block=True) 
