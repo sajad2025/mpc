@@ -11,47 +11,10 @@ import subprocess
 import numpy as np
 import matplotlib.pyplot as plt
 from contextlib import contextmanager
-from core_solver import generate_controls, EgoConfig, SimConfig
+from core_solver import EgoConfig, SimConfig, find_path
 from plots import plot_results
-from utils.io_utils import SuppressOutput, clean_acados_files  # Import SuppressOutput and clean_acados_files from utils
+from utils.io_utils import clean_acados_files  # Import SuppressOutput and clean_acados_files from utils
 
-def find_path(ego, sim_cfg):
-    """
-    Find a feasible path using the specified duration.
-    
-    Args:
-        ego: Object containing vehicle parameters and constraints
-        sim_cfg: duration and dt
-        verbose: Whether to print progress messages and compilation output
-        
-    Returns:
-        Results dictionary containing the path and control inputs
-    """
-
-    # Generate controls
-    try:
-        # Suppress output if not verbose
-        if not ego.verbose:
-            with SuppressOutput():
-                results = generate_controls(ego, sim_cfg)
-        else:
-            results = generate_controls(ego, sim_cfg)
-            
-        status = results['status']
-        
-        if status == 0:
-            if ego.verbose:
-                print(f"✓ Path planning successful")
-            return results
-        else:
-            if ego.verbose:
-                print(f"✗ Path planning failed with status {status}")
-            return None
-        
-    except Exception as e:
-        if ego.verbose:
-            print(f"✗ Error during path planning: {str(e)}")
-        return None
 
 if __name__ == "__main__":
     # Clean up any existing Acados files

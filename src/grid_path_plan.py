@@ -6,8 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.patches import Rectangle, Circle
 import argparse
-from core_solver import EgoConfig, SimConfig
-from path_finder import find_path
+from core_solver import EgoConfig, SimConfig, find_path
 from plots import plot_all_paths
 
 def grid_path_planning(goal_x, goal_y, goal_theta, grid_size=20, grid_step=1, num_angles=8):

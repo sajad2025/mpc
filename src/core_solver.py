@@ -6,6 +6,7 @@ import scipy.linalg
 from casadi import *
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosModel
 from utils.corridor import corridor_cal
+from utils.io_utils import SuppressOutput
 
 class EgoConfig:
     def __init__(self):
@@ -505,4 +506,42 @@ def generate_controls(ego, sim_cfg):
         'x': simX,
         'u': simU,
         'status': status
-    } 
+    }
+
+
+def find_path(ego, sim_cfg):
+    """
+    Find a feasible path using the specified duration.
+    same as generate_controls, but with SuppressOutput option if ego.verbose is False
+    
+    Args: same as generate_controls
+        ego: Object containing vehicle parameters and constraints
+        sim_cfg: duration and dt
+        
+    Returns:
+        Results dictionary containing the path and control inputs
+    """
+
+    try:
+        # Suppress output if not verbose
+        if not ego.verbose:
+            with SuppressOutput():
+                results = generate_controls(ego, sim_cfg)
+        else:
+            results = generate_controls(ego, sim_cfg)
+            
+        status = results['status']
+        
+        if status == 0:
+            if ego.verbose:
+                print(f"✓ Path planning successful")
+            return results
+        else:
+            if ego.verbose:
+                print(f"✗ Path planning failed with status {status}")
+            return None
+        
+    except Exception as e:
+        if ego.verbose:
+            print(f"✗ Error during path planning: {str(e)}")
+        return None
