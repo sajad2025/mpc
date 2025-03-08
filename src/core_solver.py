@@ -34,11 +34,16 @@ class EgoConfig:
         self.obstacles = None
         
         # Cost function weights
-        # Path cost weights
-        self.weight_acceleration = 100.0
+        # Running cost, controls
+        self.weight_acceleration  = 100.0
         self.weight_steering_rate = 100.0
-        self.weight_steering_angle = 1.0
-        self.weight_velocity = 0.0
+
+        # Running cost, states
+        self.weight_position_x  = 0.0
+        self.weight_position_y  = 0.0
+        self.weight_heading     = 0.0
+        self.weight_velocity    = 0.0
+        self.weight_steering    = 0.0
         
         # Terminal cost weights for all states
         self.weight_terminal_position_x = 100.0
@@ -168,19 +173,21 @@ def generate_controls(ego, sim_cfg):
     ocp.cost.cost_type_e = 'LINEAR_LS'
     
     # Penalize control inputs, steering angle, and velocity
-    ny = nu + 2  # number of outputs in cost function: [acceleration, steering_rate, steering_angle, velocity]
+    ny = nu + nx  # number of outputs in cost function: [acceleration, steering_rate], [x, y, theta, steering_angle, velocity]
     ny_e = nx  # Terminal cost for all states: [x, y, theta, velocity, steering]
     
     ocp.dims.ny = ny
     ocp.dims.ny_e = ny_e
     
-    # Cost matrix - weights for [acceleration, steering_rate, steering_angle, velocity]
-    # Use weights from ego config
+    # Cost matrix - weights for controls and states
     R = np.diag([
         ego.weight_acceleration,
         ego.weight_steering_rate,
-        ego.weight_steering_angle,
-        ego.weight_velocity
+        ego.weight_position_x,
+        ego.weight_position_y,
+        ego.weight_heading,
+        ego.weight_velocity,
+        ego.weight_steering
     ])
     
     ocp.cost.W = R
@@ -196,15 +203,17 @@ def generate_controls(ego, sim_cfg):
     ])
     ocp.cost.W_e = W_e
     
-    # Linear output functions - for controls, steering angle, and velocity
-    # Map state and control to the cost function outputs
+    # Linear cost output functions - for controls and states
     Vx = np.zeros((ny, nx))
-    Vx[2, 4] = 1.0  # Extract steering angle (5th state)
-    Vx[3, 3] = 1.0  # Extract velocity (4th state)
+    Vx[2, 0] = 1.0  # extract x (1st state)
+    Vx[3, 1] = 1.0  # extract y (2nd state)
+    Vx[4, 2] = 1.0  # extract theta (3rd state)
+    Vx[5, 3] = 1.0  # extract velocity (4th state)
+    Vx[6, 4] = 1.0  # extract steering angle (5th state)
     
     Vu = np.zeros((ny, nu))
-    Vu[0, 0] = 1.0  # Extract acceleration (1st control)
-    Vu[1, 1] = 1.0  # Extract steering rate (2nd control)
+    Vu[0, 0] = 1.0  # extract acceleration (1st control)
+    Vu[1, 1] = 1.0  # extract steering rate (2nd control)
     
     ocp.cost.Vx = Vx
     ocp.cost.Vu = Vu
@@ -214,7 +223,13 @@ def generate_controls(ego, sim_cfg):
     ocp.cost.Vx_e = Vx_e
     
     # Reference trajectory - zero reference for all outputs
-    ocp.cost.yref = np.zeros(ny)  # Reference is zero for all outputs
+    yref = np.zeros(ny)
+    yref[2] = ego.state_final[0] # x
+    yref[3] = ego.state_final[1] # y
+    yref[4] = ego.state_final[2] # theta
+    yref[5] = ego.state_final[3] # velocity
+    yref[6] = ego.state_final[4] # steering angle
+    ocp.cost.yref = yref
     
     # Terminal reference - target values for all states
     yref_e = np.array(ego.state_final)  # Target for all states

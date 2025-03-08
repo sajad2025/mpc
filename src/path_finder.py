@@ -26,7 +26,7 @@ if __name__ == "__main__":
     
     # Create ego vehicle configuration
     ego = EgoConfig()
-    ego.verbose = True
+    ego.verbose = False
 
     ego.state_start = [-20, 20, -np.pi/4, 0.0, 0]
     ego.state_final = [20, -20, -np.pi/4, 0.0, 0]
@@ -39,6 +39,25 @@ if __name__ == "__main__":
         [7,  -12,  4.0, 1.0]
     ]
     ego.obstacles = multiple_obstacles
+
+    # r = 5
+    # ego.state_start = [-r, 0, +np.pi/2, 0.0, 0]
+    # ego.state_final = [+r, 0, -np.pi/2, 0.0, 0]
+    # ego.corridor_width = 20.0
+    # ego.velocity_min = 0.0
+
+    # ego.weight_acceleration  = 100.0
+    # ego.weight_steering_rate = 100.0
+    # ego.weight_position_x = 1.0
+    # ego.weight_position_y = 1.0
+    # ego.weight_heading    = 1.0
+    # ego.weight_velocity   = 0.0
+    # ego.weight_steering   = 0.0
+    # ego.weight_terminal_position_x = 100.0 * 0.0
+    # ego.weight_terminal_position_y = 100.0 * 0.0
+    # ego.weight_terminal_heading = 100.0 * 0.0
+    # ego.weight_terminal_velocity = 10.0 * 0.0
+    # ego.weight_terminal_steering = 10.0 * 0.0
     
     results = find_path(ego, sim_cfg)
     
